@@ -3,25 +3,65 @@ package duck
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
 	"github.com/CyberDuck79/duckfile/internal/run"
 	"github.com/spf13/cobra"
 )
 
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
-	Use:                "duck [target] [args...]",
+	Use:                "duck [--flags] [target] -- [target args...]",
 	Short:              "Duckfiles – remote-templating wrapper",
 	SilenceUsage:       true,
 	SilenceErrors:      true,
-	DisableFlagParsing: true,
+	DisableFlagParsing: true, // manual parsing
 	Args:               cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// manual help because cobra no longer sees -h/--help
-		if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
-			return cmd.Help()
+		// Manual flag parsing
+		var (
+			showVersion bool
+			target      string
+			binArgs     []string
+		)
+
+		// Find "--" separator
+		sepIdx := -1
+		for i, a := range args {
+			if a == "--" {
+				sepIdx = i
+				break
+			}
 		}
-		// same to add for --version or --debug if needed
+
+		duckArgs := args
+		if sepIdx != -1 {
+			duckArgs = args[:sepIdx]
+			binArgs = args[sepIdx+1:]
+		}
+
+		// Parse duckflags
+		for i := 0; i < len(duckArgs); i++ {
+			switch duckArgs[i] {
+			case "--version":
+				showVersion = true
+			case "-h", "--help":
+				return cmd.Help()
+			default:
+				// First non-flag is target
+				if target == "" && !strings.HasPrefix(duckArgs[i], "-") {
+					target = duckArgs[i]
+				}
+			}
+		}
+
+		if showVersion {
+			fmt.Println("duck version", Version)
+			return nil
+		}
+
 		// 1. detect config file
 		configFiles := []string{"duck.yaml", "duck.yml", ".duck.yaml", ".duck.yml"}
 		var cfgFile string
@@ -41,15 +81,13 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// 3. detect optional explicit target
-		var target string
-		if len(args) > 0 && cfg.Targets[args[0]].Binary != "" {
-			target = args[0]
-			args = args[1:]
+		// 3. If no target, use default
+		if target == "" {
+			target = "default"
 		}
 
 		// 4. execute
-		return run.Exec(cfg, target, args)
+		return run.Exec(cfg, target, binArgs)
 	},
 }
 

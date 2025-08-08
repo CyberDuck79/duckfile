@@ -27,7 +27,6 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 | `name` | String | ✔ (for `default`; auto-derived in `targets`) | Human readable label, used in logs. |
 | `binary` | String | ✔ | Executable to launch (e.g. `make`, `task`, `helm`). |
 | `fileFlag` | String | ✔ | CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
-| `optionArgs` | String | ✔ | CLI arguments that customize the executable behavior (inserted before fileFlag). |
 | `template` | Template object | ✔ | Where to find the template file. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
 | `cacheFile` | String | ✖ | Destination path in the project after rendering. Default: `.duck/<target>/<basename>`. |
@@ -40,9 +39,22 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 | `repo` | Git URL | ✔ | Remote Git repository (SSH or HTTPS). |
 | `ref` | String | ✖ | Git reference (branch, tag or commit). Default `HEAD`. |
 | `path` | String | ✔ | Path inside the repo to the template file. |
+| `delims` | Object `{left,right}` | ✖ | Override Go template delimiters (default `{{` and `}}`). |
+| `allowMissing` | Boolean | ✖ | If `true`, missing keys render as empty strings (Go template `missingkey=zero`). Default `false` (strict error). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
 | `shallow` | Boolean | ✖ | Shallow clone (`--depth 1`). Default `true`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. |
+
+### Delimiters
+Use `delims` to avoid collisions when the rendered file is later processed by another Go-templating tool (e.g., Taskfile):
+```yaml
+template:
+  path: task/Taskfile.yml.tpl
+  delims: { left: "[[", right: "]]" }
+```
+
+### Missing keys
+Set `allowMissing: true` to render absent variables as empty strings. By default, rendering fails on missing keys.
 
 ## 5. Variable value (`VarValue`)
 

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 )
@@ -11,13 +12,13 @@ func CloneInto(repo, ref, cacheDir string) (string, error) {
 	// already cloned?
 	if _, err := exec.Command("test", "-d", filepath.Join(workdir, ".git")).CombinedOutput(); err == nil {
 		cmd := exec.Command("git", "-C", workdir, "fetch", "--depth", "1", "origin", ref)
-		if err := cmd.Run(); err != nil {
-			return "", err
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git fetch failed: %v: %s", err, string(out))
 		}
 	} else {
 		cmd := exec.Command("git", "clone", "--depth", "1", "--branch", ref, repo, workdir)
-		if err := cmd.Run(); err != nil {
-			return "", err
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git clone failed: %v: %s", err, string(out))
 		}
 	}
 	return workdir, nil
