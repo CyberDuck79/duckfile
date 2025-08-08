@@ -13,7 +13,7 @@ import (
 var Version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:                "duck [--flags] [target] -- [target args...]",
+	Use:                "duck [target] -- [target_args...]",
 	Short:              "Duckfiles – remote-templating wrapper",
 	SilenceUsage:       true,
 	SilenceErrors:      true,
