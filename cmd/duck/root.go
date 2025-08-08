@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 		// Parse duckflags
 		for i := 0; i < len(duckArgs); i++ {
 			switch duckArgs[i] {
-			case "--version":
+			case "-v", "--version":
 				showVersion = true
 			case "-h", "--help":
 				return cmd.Help()
@@ -89,6 +89,11 @@ var rootCmd = &cobra.Command{
 		// 4. execute
 		return run.Exec(cfg, target, binArgs)
 	},
+}
+
+func init() {
+	// Set the version in the root command
+	rootCmd.Version = Version
 }
 
 // Execute is called by main.go

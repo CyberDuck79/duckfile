@@ -101,6 +101,7 @@ type Target struct {
 	Template     Template            `yaml:"template"`
 	Variables    map[string]VarValue `yaml:"variables,omitempty"`
 	RenderedPath string              `yaml:"renderedPath,omitempty"`
+	Args         ArgList             `yaml:"args,omitempty"`
 }
 
 type DuckConf struct {
@@ -116,4 +117,36 @@ func Load(path string) (*DuckConf, error) {
 	}
 	var cfg DuckConf
 	return &cfg, yaml.Unmarshal(raw, &cfg)
+}
+
+// ArgList accepts either a single string or a list of strings in YAML.
+// Examples:
+//
+//	args: "--quiet"           => ["--quiet"]
+//	args: ["-v", "--color"]  => ["-v","--color"]
+type ArgList []string
+
+func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		// Single string value
+		if node.Value == "" {
+			*a = []string{}
+		} else {
+			*a = []string{node.Value}
+		}
+		return nil
+	case yaml.SequenceNode:
+		out := make([]string, 0, len(node.Content))
+		for _, c := range node.Content {
+			if c.Kind != yaml.ScalarNode {
+				return fmt.Errorf("args array must contain strings")
+			}
+			out = append(out, c.Value)
+		}
+		*a = out
+		return nil
+	default:
+		return fmt.Errorf("invalid YAML type for args: %v", node.Kind)
+	}
 }

@@ -1,3 +1,6 @@
+![Logo](assets/logo.png)
+
+
 # duckfile
 Universal remote templating for DevOps tools
 

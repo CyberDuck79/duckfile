@@ -80,7 +80,9 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	}
 
 	// 7. Execute underlying binary with the symlink
-	args := append([]string{t.FileFlag, linkPath}, passthrough...)
+	// Order: [fileFlag linkPath] + target default args + user passthrough args
+	args := append([]string{t.FileFlag, linkPath}, []string(t.Args)...)
+	args = append(args, passthrough...)
 	cmd := exec.Command(t.Binary, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()
