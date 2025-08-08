@@ -1,0 +1,15 @@
+{
+  "yaml.customTags": [
+    "!env scalar",
+    "!cmd scalar",
+    "!file scalar"
+  ],
+  "yaml.schemas": {
+    "file:///${workspaceFolder}/docs/duck.schema.json": [
+      "duck.yaml",
+      "duck.yml",
+      ".duck.yaml",
+      ".duck.yml"
+    ]
+  }
+}

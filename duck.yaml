@@ -1,6 +1,8 @@
+# yaml-language-server: $schema=docs/duck.schema.json
+
 version: 1
 
-default:                # default target ⇒ `duck build`
+default:                # default target ⇒ `duck build` or `duck`
   name: build
   binary: make
   fileFlag: -f

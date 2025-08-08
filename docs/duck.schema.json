@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Duckfile configuration",
+  "type": "object",
+  "required": ["version", "default"],
+  "properties": {
+    "version": { "type": "integer", "enum": [1] },
+    "default": { "$ref": "#/definitions/target" },
+    "targets": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/target" }
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "cacheDir": { "type": "string" },
+        "logLevel": { "type": "string", "enum": ["debug","info","warn","error"] },
+        "allowedHosts": { "type": "array", "items": { "type": "string" } },
+        "locked": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "target": {
+      "type": "object",
+      "required": ["binary", "fileFlag", "template"],
+      "properties": {
+        "name": { "type": "string" },
+        "binary": { "type": "string" },
+        "fileFlag": { "type": "string" },
+        "template": { "$ref": "#/definitions/template" },
+        "variables": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        },
+        "renderedPath": { "type": "string" },
+        "args": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "template": {
+      "type": "object",
+      "required": ["repo", "path"],
+      "properties": {
+        "repo": { "type": "string" },
+        "ref": { "type": "string" },
+        "path": { "type": "string" },
+        "delims": {
+          "type": "object",
+          "properties": {
+            "left": { "type": "string" },
+            "right": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "allowMissing": { "type": "boolean" },
+        "submodules": { "type": "boolean" },
+        "shallow": { "type": "boolean" },
+        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
