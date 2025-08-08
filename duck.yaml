@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=docs/duck.schema.json
+
+version: 1
+
+default:                # default target ⇒ `duck build` or `duck`
+  name: build
+  binary: make
+  fileFlag: -f
+  template:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: main
+    path: Makefile.tpl
+  variables:
+    PROJECT: my-service
+    DATE: !cmd date +%Y-%m-%d
+  renderedPath: Makefile
+
+targets:
+  test:                  # executed with `duck test`
+    binary: task
+    fileFlag: --taskfile
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: v2.3.1
+      path: task/Taskfile.yml.tpl
+      delims: { left: "[[", right: "]]" }   # avoid Task's {{ }}
+      allowMissing: true                    # missing vars => empty string
+    variables:
+      GO_VERSION: !env GO_VERSION
+      PLATFORM: Darwin
+    args: ["--quiet"]
+
+settings:
+  logLevel: debug
+  allowedHosts:
+    - github.com

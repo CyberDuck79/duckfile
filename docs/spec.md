@@ -1,6 +1,6 @@
-# Duckfiles – Configuration Specification (`.duck.yaml`)
+# Duckfiles – Configuration Specification (`duck.yaml`)
 
-The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single source of truth that tells Duckfiles how to fetch, render, cache and execute a remote template.
+The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single source of truth that tells Duckfile how to fetch, render, cache, and execute a remote template.
 
 ## 1. File format
 
@@ -15,7 +15,7 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 
 | Key | Type | Required | Description |
 |---|---|---|---|
-| `version` | Integer | ✔ | Specification version understood by this Duckfiles release. Start with `1`. |
+| `version` | Integer | ✔ | Specification version understood by this release. Start with `1`. |
 | `default` | Target object | ✔ | First (default) target. Runs when user executes `duck <args>`. |
 | `targets` | Mapping <string, Target> | ✖ | Additional named targets executed via `duck <target> <args>`. |
 | `settings` | Settings object | ✖ | Global switches (cache dir, log level, allowlist…). |
@@ -27,10 +27,9 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 | `name` | String | ✔ (for `default`; auto-derived in `targets`) | Human readable label, used in logs. |
 | `binary` | String | ✔ | Executable to launch (e.g. `make`, `task`, `helm`). |
 | `fileFlag` | String | ✔ | CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
-| `optionArgs` | String | ✔ | CLI arguments that customize the executable behavior (inserted before fileFlag). |
 | `template` | Template object | ✔ | Where to find the template file. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
-| `cacheFile` | String | ✖ | Destination path in the project after rendering. Default: `.duck/<target>/<basename>`. |
+| `renderedPath` | String | ✖ | Destination path used by the tool. Default: `.duck/<target>/<basename>`. |
 | `args` | String or String[] | ✖ | Default extra arguments always passed to the binary before user-provided ones. |
 
 ## 4. Template object
@@ -40,111 +39,81 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 | `repo` | Git URL | ✔ | Remote Git repository (SSH or HTTPS). |
 | `ref` | String | ✖ | Git reference (branch, tag or commit). Default `HEAD`. |
 | `path` | String | ✔ | Path inside the repo to the template file. |
+| `delims` | Object `{left,right}` | ✖ | Override Go template delimiters (`{{` / `}}` by default). |
+| `allowMissing` | Boolean | ✖ | If `true`, missing keys render as zero values (empty strings). Default `false` (strict). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
 | `shallow` | Boolean | ✖ | Shallow clone (`--depth 1`). Default `true`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. |
 
 ## 5. Variable value (`VarValue`)
 
-A variable value is **either** a scalar **or** a tagged scalar beginning with `!`.
+A variable value is either a scalar or a tagged scalar beginning with `!`.
 
 | Tag | Meaning | Example | Result |
 |---|---|---|---|
-| *(no tag)* | Literal string | `REGION: eu-west-3` | `"eu-west-3"` |
+| (no tag) | Literal string/number/bool | `REGION: eu-west-3` | `"eu-west-3"` |
 | `!env` | Take from environment variable | `GO_VERSION: !env GOVER` | `$GOVER` |
 | `!cmd` | Evaluate shell command | `DATE: !cmd date +%F` | `2025-08-07` |
 | `!file` | Read entire file | `CERT: !file ./tls.crt` | File contents |
 
-Notes  
-• Shell commands are executed with `/bin/sh -c`.  
-• Command values are cached per render; they do **not** re-run unless `duck sync` or inputs change.
+Notes:
+- Shell commands run with `/bin/sh -c`. Trailing newlines are trimmed.
+- Values are computed per render.
 
 ## 6. Settings object
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `cacheDir` | String | `.duck/objects` | Folder used for immutable cache blobs. |
+| `cacheDir` | String | `.duck/objects` | Folder for cache objects. |
 | `logLevel` | Enum `debug` `info` `warn` `error` | `info` | Verbosity of CLI output. |
-| `allowedHosts` | String[] | *(no restriction)* | White-list of Git hostnames. |
+| `allowedHosts` | String[] | *(no restriction)* | Allowlist of Git hostnames. |
 | `locked` | Boolean | `false` | If `true`, `duck` exits when template or variables changed instead of updating. |
 
-## 7. Cache-key algorithm (informative)
-
-\[ key = SHA-1( repo + ref + path + renderedVariablesJSON ) \]
-
-The rendered template is stored at  
-`.duck/objects/<key>/<basename>`  
-and symlinked / copied to `cacheFile`.
+## 7. Deterministic cache (informative)
+Key = `SHA1(repo + ref + path + resolvedVariablesJSON)`.  
+Stored at `.duck/objects/<key>/<basename>`.  
+A symlink is created at `renderedPath` (or `.duck/<target>/<basename>`) pointing to the object.
 
 ## 8. Example config
-
 ```yaml
 version: 1
 
-default:                # default target ⇒ `duck build`
+default:
   name: build
   binary: make
   fileFlag: -f
   template:
-    repo: git@gitlab.com:acme/devops-templates.git
+    repo: git@github.com:acme/devops-templates.git
     ref: main
     path: make/Makefile.tpl
   variables:
     PROJECT: my-service
     DATE: !cmd date +%Y-%m-%d
-  cacheFile: .duck/Makefile
+  renderedPath: .duck/Makefile
 
 targets:
-  test:                  # executed with `duck test`
+  test:
     binary: task
     fileFlag: --taskfile
     template:
-      repo: https://gitlab.com/acme/test-templates.git
-      ref: v2.3.0
-      path: Taskfile.yml.tpl
+      repo: https://github.com/acme/test-templates.git
+      ref: v2.3.1
+      path: task/Taskfile.yml.tpl
+      delims: { left: "[[", right: "]]" }
+      allowMissing: true
     variables:
-      GO_VERSION: !env GO_VERSION    # falls back to 1.22 if unset
+      GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
     args: ["--quiet"]
 
 settings:
   logLevel: debug
-  allowedHosts:
-    - gitlab.com
+  allowedHosts: [github.com]
 ```
 
-## 9. JSON-Schema (v7)
-
-Place the following file under `docs/duck.schema.json`; editors can auto-validate.
-
+## 9. JSON-Schema (v7) excerpt
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Duckfiles configuration",
-  "type": "object",
-  "required": ["version", "default"],
-  "properties": {
-    "version": { "type": "integer", "enum": [1] },
-
-    "default": { "$ref": "#/definitions/target" },
-
-    "targets": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/definitions/target" }
-    },
-
-    "settings": {
-      "type": "object",
-      "properties": {
-        "cacheDir": { "type": "string" },
-        "logLevel": { "type": "string", "enum": ["debug","info","warn","error"] },
-        "allowedHosts": { "type": "array", "items": { "type": "string" } },
-        "locked": { "type": "boolean" }
-      },
-      "additionalProperties": false
-    }
-  },
-
   "definitions": {
     "target": {
       "type": "object",
@@ -153,10 +122,9 @@ Place the following file under `docs/duck.schema.json`; editors can auto-validat
         "name": { "type": "string" },
         "binary": { "type": "string" },
         "fileFlag": { "type": "string" },
-		"optionArgs": { "type": "string" },
         "template": { "$ref": "#/definitions/template" },
         "variables": { "type": "object", "additionalProperties": { "type": ["string","number","boolean"] } },
-        "cacheFile": { "type": "string" },
+        "renderedPath": { "type": "string" },
         "args": {
           "oneOf": [
             { "type": "string" },
@@ -166,7 +134,6 @@ Place the following file under `docs/duck.schema.json`; editors can auto-validat
       },
       "additionalProperties": false
     },
-
     "template": {
       "type": "object",
       "required": ["repo", "path"],
@@ -174,6 +141,12 @@ Place the following file under `docs/duck.schema.json`; editors can auto-validat
         "repo": { "type": "string" },
         "ref": { "type": "string" },
         "path": { "type": "string" },
+        "delims": {
+          "type": "object",
+          "properties": { "left": { "type": "string" }, "right": { "type": "string" } },
+          "additionalProperties": false
+        },
+        "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
         "shallow": { "type": "boolean" },
         "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
@@ -184,11 +157,6 @@ Place the following file under `docs/duck.schema.json`; editors can auto-validat
 }
 ```
 
----
-
 ## 10. Migration rules
-
-| Change | Action for users |
-|---|---|
-| `version` bump 2→future | Tool prints error: “please run duck migrate”. |
+Future changes will be announced with a version bump; for MVP users, no migration is required.
 
