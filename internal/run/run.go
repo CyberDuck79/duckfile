@@ -31,26 +31,13 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 		}
 	}
 
-	// 1. Ensure .duck/<target>/ exists
-	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return err
-	}
-
-	// 2. Fetch template repository at the requested ref
-	repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
-	if err != nil {
-		return err
-	}
-
-	// 3. Resolve variables
+	// 1. Resolve variables first (no need to clone to do this)
 	vars, err := resolveVariables(t.Variables)
 	if err != nil {
 		return err
 	}
 
-	// 4. Compute deterministic cache key and object path
-	src := filepath.Join(repoDir, t.Template.Path)
+	// 2. Compute deterministic cache key and object path
 	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
 
 	key, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
@@ -59,27 +46,64 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	}
 	objDir := filepath.Join(".duck", "objects", key)
 	objFile := filepath.Join(objDir, base)
-	if err := os.MkdirAll(objDir, 0o755); err != nil {
+	// Ensure objects dir exists only if we will write into it later.
+
+	// 3. Prepare per-target cache dir and compute symlink path
+	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
+	linkPath := t.RenderedPath
+	if linkPath == "" {
+		linkPath = filepath.Join(cacheDir, base) // per-target path
+	}
 
-	// 5. If object missing, render into it
-	if _, err := os.Stat(objFile); err != nil {
+	// 4. If object is missing, fetch template repo and render it; otherwise, skip cloning
+	if _, statErr := os.Stat(objFile); statErr != nil {
+		// Fetch template repository at the requested ref
+		repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
+		if err != nil {
+			return err
+		}
+		src := filepath.Join(repoDir, t.Template.Path)
+		if err := os.MkdirAll(objDir, 0o755); err != nil {
+			return err
+		}
 		if err := renderTemplate(src, objFile, t, vars); err != nil {
 			return err
 		}
 	}
 
-	// 6. Create/update symlink at desired rendered path
-	linkPath := t.RenderedPath
-	if linkPath == "" {
-		linkPath = filepath.Join(cacheDir, base) // per-target path
+	// 5. Determine previous key from existing symlink (if any)
+	oldKey := ""
+	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
+		if dest, err := os.Readlink(linkPath); err == nil {
+			// Resolve relative symlink to absolute
+			if !filepath.IsAbs(dest) {
+				dest = filepath.Join(filepath.Dir(linkPath), dest)
+			}
+			if abs, err := filepath.Abs(dest); err == nil {
+				// abs is .../.duck/objects/<key>/<base> ideally
+				objDirPrev := filepath.Dir(abs)
+				objectsDir := filepath.Base(filepath.Dir(objDirPrev))
+				if objectsDir == "objects" {
+					oldKey = filepath.Base(objDirPrev)
+				}
+			}
+		}
 	}
+
+	// 6. Create/update symlink to the current object
 	if err := ensureSymlink(objFile, linkPath); err != nil {
 		return err
 	}
 
-	// 7. Execute underlying binary with the symlink
+	// 7. If the key changed, remove the old object directory to free cache
+	if oldKey != "" && oldKey != key {
+		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
+	}
+
+	// 8. Execute underlying binary with the symlink
 	// Order: [fileFlag linkPath] + target default args + user passthrough args
 	args := append([]string{t.FileFlag, linkPath}, []string(t.Args)...)
 	args = append(args, passthrough...)

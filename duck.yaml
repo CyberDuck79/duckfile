@@ -28,7 +28,7 @@ targets:
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: Darwin
-    args: ["--quiet"]
+    args: ["--silent"]
 
 settings:
   logLevel: debug

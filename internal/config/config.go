@@ -122,7 +122,7 @@ func Load(path string) (*DuckConf, error) {
 // ArgList accepts either a single string or a list of strings in YAML.
 // Examples:
 //
-//	args: "--quiet"           => ["--quiet"]
+//	args: "--silent"           => ["--silent"]
 //	args: ["-v", "--color"]  => ["-v","--color"]
 type ArgList []string
 

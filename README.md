@@ -52,7 +52,7 @@ targets:
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
-    args: ["--quiet"]
+    args: ["--silent"]
 ```
 
 2) Run

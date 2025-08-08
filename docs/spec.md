@@ -104,7 +104,7 @@ targets:
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
-    args: ["--quiet"]
+    args: ["--silent"]
 
 settings:
   logLevel: debug
