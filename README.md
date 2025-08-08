@@ -1,3 +1,6 @@
+![Logo](assets/logo.png)
+
+
 # duckfile
 Universal remote templating for DevOps tools
 
@@ -10,6 +13,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
 - Simple CLI that forwards args to your tool (make, task, helm, …)
+- Render-only workflow via `duck sync` when you don't want `duck` to execute your tools
 
 ## Install
 ```sh
@@ -49,7 +53,16 @@ targets:
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
-    args: ["--quiet"]
+    args: ["--silent"]
+
+  docs:
+    # No binary: this target is sync-only. Use `duck sync docs` to render.
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-docs-templates.git
+      ref: main
+      path: index.md.tpl
+    variables:
+      AUTHOR: Cyberduck
 ```
 
 2) Run
@@ -62,6 +75,15 @@ go run ./cmd/duck
 
 # run a named target and pass additional args after --
 go run ./cmd/duck test --
+
+# render-only workflows (no binary execution)
+# sync all targets into cache and update symlinks
+go run ./cmd/duck sync
+# force re-render ignoring cache
+go run ./cmd/duck sync -f
+# clean cache for all or a single target
+go run ./cmd/duck clean
+go run ./cmd/duck clean test
 ```
 
 ## How it works (MVP)
@@ -77,6 +99,7 @@ go run ./cmd/duck test --
   - rendered file stored under .duck/objects/<key>/<basename>
   - a symlink at renderedPath (or .duck/<target>/<basename>) points to the object
 - Execute the tool: binary fileFlag renderedPath [args …]
+- Or use `duck sync` for render-only workflows (no `binary` required)
 
 ## Templating tips
 - Use Sprig to transform values: {{ .PROJECT | upper }}
@@ -100,3 +123,10 @@ go run ./cmd/duck test --
 
 ## Spec
 See the full specification: [docs/spec.md](docs/spec.md)
+
+## Using Duckfile without executing tools
+If you prefer Duckfile to only manage templates and never launch external binaries, omit `binary` from your targets. You can then:
+- `duck sync [target] [-f]` to render and refresh symlinks
+- `duck clean [target]` to purge caches
+
+If a target has no `binary`, attempting to execute it via the root command will error with guidance to use `sync` instead.

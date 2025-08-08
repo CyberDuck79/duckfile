@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 		// Parse duckflags
 		for i := 0; i < len(duckArgs); i++ {
 			switch duckArgs[i] {
-			case "--version":
+			case "-v", "--version":
 				showVersion = true
 			case "-h", "--help":
 				return cmd.Help()
@@ -91,10 +91,75 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	// Set the version in the root command
+	rootCmd.Version = Version
+
+	// Subcommand: sync
+	var syncForce bool
+	syncCmd := &cobra.Command{
+		Use:   "sync [target]",
+		Short: "Sync templates into cache without executing",
+		Long:  "Sync templates into the deterministic cache (.duck/objects) and update symlinks. Provide an optional target to sync only that target. Use -f/--force to re-render ignoring existing cache.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			var target string
+			if len(args) > 0 {
+				target = args[0]
+			}
+			return run.Sync(cfg, target, syncForce)
+		},
+	}
+	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Force re-render even if cache exists")
+
+	// Subcommand: clean
+	cleanCmd := &cobra.Command{
+		Use:   "clean [target]",
+		Short: "Purge cached objects and per-target directories",
+		Long:  "Purge cache by removing .duck/objects and per-target directories. Provide an optional target to clean only that target.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			var target string
+			if len(args) > 0 {
+				target = args[0]
+			}
+			return run.Clean(cfg, target)
+		},
+	}
+
+	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(cleanCmd)
+}
+
 // Execute is called by main.go
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+}
+
+func loadConfig() (*config.DuckConf, error) {
+	// detect config file
+	configFiles := []string{"duck.yaml", "duck.yml", ".duck.yaml", ".duck.yml"}
+	var cfgFile string
+	for _, f := range configFiles {
+		if _, err := os.Stat(f); err == nil {
+			cfgFile = f
+			break
+		}
+	}
+	if cfgFile == "" {
+		return nil, fmt.Errorf("no config file found (tried: %v)", configFiles)
+	}
+	// load config
+	return config.Load(cfgFile)
 }
