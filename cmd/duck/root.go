@@ -1,4 +1,4 @@
-package duck
+package main
 
 import (
 	"fmt"
@@ -92,7 +92,7 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute is called by main.go
-func Execute() {
+func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

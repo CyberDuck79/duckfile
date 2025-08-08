@@ -55,13 +55,13 @@ targets:
 2) Run
 ```sh
 # print version
-go run ./cmd --version
+go run ./cmd/duck --version
 
 # run default target (renders Makefile and calls make -f Makefile)
-go run ./cmd
+go run ./cmd/duck
 
 # run a named target and pass additional args after --
-go run ./cmd test --
+go run ./cmd/duck test --
 ```
 
 ## How it works (MVP)
