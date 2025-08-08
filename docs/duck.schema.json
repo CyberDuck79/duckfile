@@ -25,7 +25,7 @@
   "definitions": {
     "target": {
       "type": "object",
-      "required": ["binary", "fileFlag", "template"],
+      "required": ["template"],
       "properties": {
         "name": { "type": "string" },
         "binary": { "type": "string" },
@@ -43,7 +43,26 @@
           ]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "not": { "required": ["binary"] } },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["fileFlag"] },
+                { "required": ["args"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "required": ["binary"] },
+          "then": {
+            "required": ["fileFlag"]
+          }
+        }
+      ]
     },
     "template": {
       "type": "object",

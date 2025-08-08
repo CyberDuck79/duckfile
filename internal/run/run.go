@@ -31,6 +31,12 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 		}
 	}
 
+	// Ensure executable configuration is present
+	if strings.TrimSpace(t.Binary) == "" {
+		return fmt.Errorf("target %q has no binary configured; use 'duck sync%s' to render without executing",
+			targetOrDefault(targetName, "default"), optTargetSuffix(targetName))
+	}
+
 	// 1. Resolve variables first (no need to clone to do this)
 	vars, err := resolveVariables(t.Variables)
 	if err != nil {
@@ -262,4 +268,163 @@ func ensureSymlink(target, link string) error {
 	}
 
 	return os.Symlink(targetForLink, link)
+}
+
+// Sync renders templates into the cache without executing the target.
+// If targetName is empty, all targets (default + named) are synced.
+// If force is true, re-render regardless of existing cache.
+func Sync(cfg *config.DuckConf, targetName string, force bool) error {
+	targets, err := collectTargets(cfg, targetName)
+	if err != nil {
+		return err
+	}
+	for name, t := range targets {
+		if err := syncOne(name, t, force); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncOne(targetName string, t config.Target, force bool) error {
+	// Resolve variables and compute key/paths
+	vars, err := resolveVariables(t.Variables)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
+	key, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
+	if err != nil {
+		return err
+	}
+	objDir := filepath.Join(".duck", "objects", key)
+	objFile := filepath.Join(objDir, base)
+
+	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return err
+	}
+	linkPath := t.RenderedPath
+	if linkPath == "" {
+		linkPath = filepath.Join(cacheDir, base)
+	}
+
+	needRender := force
+	if !needRender {
+		if _, err := os.Stat(objFile); err != nil {
+			needRender = true
+		}
+	}
+	if needRender {
+		// Always fetch/clone then render
+		repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
+		if err != nil {
+			return err
+		}
+		src := filepath.Join(repoDir, t.Template.Path)
+		if err := os.MkdirAll(objDir, 0o755); err != nil {
+			return err
+		}
+		if err := renderTemplate(src, objFile, t, vars); err != nil {
+			return err
+		}
+	}
+
+	// Detect previous key via symlink before updating
+	oldKey := detectKeyFromSymlink(linkPath)
+	if err := ensureSymlink(objFile, linkPath); err != nil {
+		return err
+	}
+	if oldKey != "" && oldKey != key {
+		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
+	}
+	return nil
+}
+
+// Clean removes cached objects and per-target working dirs.
+// If targetName is empty, purge everything. Otherwise, clean only that target’s cache
+// and its currently referenced object.
+func Clean(cfg *config.DuckConf, targetName string) error {
+	if strings.TrimSpace(targetName) == "" {
+		// Remove per-target dirs and unlink symlinks
+		targets, _ := collectTargets(cfg, "")
+		for name, t := range targets {
+			_ = cleanOne(name, t)
+		}
+		// Finally, remove objects dir
+		return os.RemoveAll(filepath.Join(".duck", "objects"))
+	}
+	t, ok := cfg.Targets[targetName]
+	if !ok && targetName != "default" && targetName != "" {
+		return fmt.Errorf("unknown target %q", targetName)
+	}
+	if targetName == "default" {
+		t = cfg.Default
+		targetName = "default"
+	}
+	return cleanOne(targetName, t)
+}
+
+func cleanOne(targetName string, t config.Target) error {
+	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
+	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	linkPath := t.RenderedPath
+	if linkPath == "" {
+		linkPath = filepath.Join(cacheDir, base)
+	}
+	// Remove symlink if it exists
+	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
+		// Remove the object pointed by this symlink as well
+		if key := detectKeyFromSymlink(linkPath); key != "" {
+			_ = os.RemoveAll(filepath.Join(".duck", "objects", key))
+		}
+		_ = os.Remove(linkPath)
+	}
+	// Remove per-target cache dir (cloned repo path etc.)
+	return os.RemoveAll(cacheDir)
+}
+
+func detectKeyFromSymlink(linkPath string) string {
+	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
+		if dest, err := os.Readlink(linkPath); err == nil {
+			if !filepath.IsAbs(dest) {
+				dest = filepath.Join(filepath.Dir(linkPath), dest)
+			}
+			if abs, err := filepath.Abs(dest); err == nil {
+				objDirPrev := filepath.Dir(abs)
+				if filepath.Base(filepath.Dir(objDirPrev)) == "objects" {
+					return filepath.Base(objDirPrev)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func collectTargets(cfg *config.DuckConf, targetName string) (map[string]config.Target, error) {
+	res := map[string]config.Target{}
+	if strings.TrimSpace(targetName) == "" {
+		res["default"] = cfg.Default
+		for k, v := range cfg.Targets {
+			res[k] = v
+		}
+		return res, nil
+	}
+	if targetName == "default" {
+		res["default"] = cfg.Default
+		return res, nil
+	}
+	t, ok := cfg.Targets[targetName]
+	if !ok {
+		return nil, fmt.Errorf("unknown target %q", targetName)
+	}
+	res[targetName] = t
+	return res, nil
+}
+
+func optTargetSuffix(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return ""
+	}
+	return " " + name
 }

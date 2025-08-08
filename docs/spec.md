@@ -25,12 +25,12 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `name` | String | ✔ (for `default`; auto-derived in `targets`) | Human readable label, used in logs. |
-| `binary` | String | ✔ | Executable to launch (e.g. `make`, `task`, `helm`). |
-| `fileFlag` | String | ✔ | CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
+| `binary` | String | ✖ | Executable to launch (e.g. `make`, `task`, `helm`). Optional for sync/clean-only workflows. |
+| `fileFlag` | String | Cond. | Required when `binary` is set. CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
 | `template` | Template object | ✔ | Where to find the template file. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
 | `renderedPath` | String | ✖ | Destination path used by the tool. Default: `.duck/<target>/<basename>`. |
-| `args` | String or String[] | ✖ | Default extra arguments always passed to the binary before user-provided ones. |
+| `args` | String or String[] | Cond. | Allowed only when `binary` is set. Default extra arguments always passed to the binary before user-provided ones. |
 
 ## 4. Template object
 
@@ -83,20 +83,20 @@ default:
   binary: make
   fileFlag: -f
   template:
-    repo: git@github.com:acme/devops-templates.git
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
     ref: main
-    path: make/Makefile.tpl
+    path: Makefile.tpl
   variables:
     PROJECT: my-service
     DATE: !cmd date +%Y-%m-%d
-  renderedPath: .duck/Makefile
+  renderedPath: Makefile
 
 targets:
   test:
     binary: task
     fileFlag: --taskfile
     template:
-      repo: https://github.com/acme/test-templates.git
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
       ref: v2.3.1
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }
@@ -106,18 +106,34 @@ targets:
       PLATFORM: linux/amd64
     args: ["--silent"]
 
+  docs:
+    # No binary: this target is sync-only. Use `duck sync docs` to render.
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-docs-templates.git
+      ref: main
+      path: index.md.tpl
+    variables:
+      AUTHOR: Cyberduck
+
 settings:
   logLevel: debug
   allowedHosts: [github.com]
 ```
 
-## 9. JSON-Schema (v7) excerpt
+## 9. CLI subcommands
+
+- `duck sync [target] [-f]`: render into cache and update symlinks without executing the tool. With `-f/--force`, ignore cache and re-render. If no target is provided, syncs all (default + named) targets.
+- `duck clean [target]`: purge cache. If no target provided, removes all cached objects and per-target directories; otherwise only that target.
+
+When a target lacks `binary`, `duck` will refuse to execute it with the root command. Use `duck sync` and `duck clean` instead.
+
+## 10. JSON-Schema (v7) excerpt
 ```json
 {
   "definitions": {
     "target": {
       "type": "object",
-      "required": ["binary","fileFlag","template"],
+  "required": ["template"],
       "properties": {
         "name": { "type": "string" },
         "binary": { "type": "string" },
@@ -132,7 +148,11 @@ settings:
           ]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "not": { "required": ["binary"] } }, "then": { "not": { "anyOf": [ { "required": ["fileFlag"] }, { "required": ["args"] } ] } } },
+        { "if": { "required": ["binary"] }, "then": { "required": ["fileFlag"] } }
+      ]
     },
     "template": {
       "type": "object",

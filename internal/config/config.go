@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -96,8 +97,8 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 
 type Target struct {
 	Name         string              `yaml:"name"`
-	Binary       string              `yaml:"binary"`
-	FileFlag     string              `yaml:"fileFlag"`
+	Binary       string              `yaml:"binary,omitempty"`
+	FileFlag     string              `yaml:"fileFlag,omitempty"`
 	Template     Template            `yaml:"template"`
 	Variables    map[string]VarValue `yaml:"variables,omitempty"`
 	RenderedPath string              `yaml:"renderedPath,omitempty"`
@@ -116,7 +117,13 @@ func Load(path string) (*DuckConf, error) {
 		return nil, err
 	}
 	var cfg DuckConf
-	return &cfg, yaml.Unmarshal(raw, &cfg)
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 // ArgList accepts either a single string or a list of strings in YAML.
@@ -149,4 +156,33 @@ func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
 	default:
 		return fmt.Errorf("invalid YAML type for args: %v", node.Kind)
 	}
+}
+
+// Validate enforces cross-field rules:
+// - binary is optional
+// - fileFlag and args are only allowed when binary is set
+func (c *DuckConf) Validate() error {
+	// default target
+	if err := validateTarget(c.Default, "default"); err != nil {
+		return err
+	}
+	for name, t := range c.Targets {
+		if err := validateTarget(t, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateTarget(t Target, name string) error {
+	hasBin := strings.TrimSpace(t.Binary) != ""
+	if !hasBin {
+		if strings.TrimSpace(t.FileFlag) != "" {
+			return fmt.Errorf("target %q: fileFlag is not allowed without binary", name)
+		}
+		if len(t.Args) > 0 {
+			return fmt.Errorf("target %q: args are not allowed without binary", name)
+		}
+	}
+	return nil
 }

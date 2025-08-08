@@ -30,6 +30,15 @@ targets:
       PLATFORM: Darwin
     args: ["--silent"]
 
+  docs:
+    # No binary: this target is sync-only. Use `duck sync docs` to render.
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-docs-templates.git
+      ref: main
+      path: index.md.tpl
+    variables:
+      AUTHOR: Cyberduck
+
 settings:
   logLevel: debug
   allowedHosts:
