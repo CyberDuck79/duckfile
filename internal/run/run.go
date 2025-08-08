@@ -2,8 +2,12 @@ package run
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"os"
@@ -27,42 +31,56 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 		}
 	}
 
-	// 1. Ensure cache dir
+	// 1. Ensure .duck/<target>/ exists
 	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
 
-	// 2. Fetch template repository
+	// 2. Fetch template repository at the requested ref
 	repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
 	if err != nil {
 		return err
 	}
 
-	// 3. Render the template to destination
-	src := filepath.Join(repoDir, t.Template.Path)
-	var dst string
-	if t.CacheFile != "" {
-		dst = t.CacheFile
-	} else {
-		dstName := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
-		dst = filepath.Join(cacheDir, dstName)
-	}
-
+	// 3. Resolve variables
 	vars, err := resolveVariables(t.Variables)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+
+	// 4. Compute deterministic cache key and object path
+	src := filepath.Join(repoDir, t.Template.Path)
+	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
+
+	key, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
+	if err != nil {
+		return err
+	}
+	objDir := filepath.Join(".duck", "objects", key)
+	objFile := filepath.Join(objDir, base)
+	if err := os.MkdirAll(objDir, 0o755); err != nil {
 		return err
 	}
 
-	if err = renderTemplate(src, dst, t, vars); err != nil {
+	// 5. If object missing, render into it
+	if _, err := os.Stat(objFile); err != nil {
+		if err := renderTemplate(src, objFile, t, vars); err != nil {
+			return err
+		}
+	}
+
+	// 6. Create/update symlink at desired rendered path
+	linkPath := t.RenderedPath
+	if linkPath == "" {
+		linkPath = filepath.Join(cacheDir, base) // per-target path
+	}
+	if err := ensureSymlink(objFile, linkPath); err != nil {
 		return err
 	}
 
-	// 4. Execute underlying binary
-	args := append([]string{t.FileFlag, dst}, passthrough...)
+	// 7. Execute underlying binary with the symlink
+	args := append([]string{t.FileFlag, linkPath}, passthrough...)
 	cmd := exec.Command(t.Binary, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()
@@ -81,11 +99,12 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 		return err
 	}
 
+	// Build template with sprig functions and a small set of extras
 	funcMap := sprig.TxtFuncMap()
 	funcMap["now"] = time.Now
 	funcMap["env"] = os.Getenv
 
-	// Delimiters
+	// Delimiters: default {{ }}, overridable by config
 	left, right := "{{", "}}"
 	if targ.Template.Delims != nil {
 		if l := strings.TrimSpace(targ.Template.Delims.Left); l != "" {
@@ -98,7 +117,7 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 
 	tmpl := template.New(filepath.Base(src)).Funcs(funcMap).Delims(left, right)
 
-	// Missing keys policy: default strict; allowMissing => zero (empty strings)
+	// Missing-key policy: allowMissing => zero (empty strings), else strict error
 	if targ.Template.AllowMissing {
 		tmpl = tmpl.Option("missingkey=zero")
 	} else {
@@ -115,6 +134,9 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 		return fmt.Errorf("execute template: %w", err)
 	}
 
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
 }
 
@@ -133,19 +155,85 @@ func resolveVariables(in map[string]config.VarValue) (map[string]any, error) {
 			}
 			out[k] = string(b)
 		case config.VarCmd:
+			// Execute with /bin/sh -c to match spec
 			cmd := exec.Command("/bin/sh", "-c", v.Arg)
 			cmd.Env = os.Environ()
 			outb, err := cmd.Output()
 			if err != nil {
+				// bubble up stderr if possible
 				if ee, ok := err.(*exec.ExitError); ok {
 					return nil, fmt.Errorf("cmd var %s failed: %v: %s", k, err, string(ee.Stderr))
 				}
 				return nil, fmt.Errorf("cmd var %s failed: %w", k, err)
 			}
+			// Trim trailing newline for typical CLI output
 			out[k] = strings.TrimRight(string(outb), "\r\n")
 		default:
 			out[k] = v.Value
 		}
 	}
 	return out, nil
+}
+
+// computeCacheKey builds a stable SHA1 over repo/ref/path and resolved vars.
+func computeCacheKey(repo, ref, path string, vars map[string]any) (string, error) {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	type kv struct {
+		K string      `json:"k"`
+		V interface{} `json:"v"`
+	}
+	pairs := make([]kv, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, kv{K: k, V: vars[k]})
+	}
+	payload := map[string]any{
+		"repo": repo,
+		"ref":  ref,
+		"path": path,
+		"vars": pairs,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	sum := sha1.Sum(b)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func ensureSymlink(target, link string) error {
+	// Ensure parent dir of link exists
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		return err
+	}
+
+	// Resolve absolute target, then prefer a relative path from link dir
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return err
+	}
+	linkDir := filepath.Dir(link)
+	relTarget, relErr := filepath.Rel(linkDir, absTarget)
+	targetForLink := absTarget
+	if relErr == nil && relTarget != "" && !strings.HasPrefix(relTarget, ".."+string(filepath.Separator)+"..") {
+		// Use relative if it doesn’t escape too far up; keeps links portable inside .duck
+		targetForLink = relTarget
+	}
+
+	// If a link/file exists, replace it unless it already matches
+	if fi, err := os.Lstat(link); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if dest, err := os.Readlink(link); err == nil && dest == targetForLink {
+				return nil // already correct
+			}
+		}
+		if err := os.Remove(link); err != nil {
+			return err
+		}
+	}
+
+	return os.Symlink(targetForLink, link)
 }

@@ -95,12 +95,12 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type Target struct {
-	Name      string              `yaml:"name"`
-	Binary    string              `yaml:"binary"`
-	FileFlag  string              `yaml:"fileFlag"`
-	Template  Template            `yaml:"template"`
-	Variables map[string]VarValue `yaml:"variables,omitempty"`
-	CacheFile string              `yaml:"cacheFile,omitempty"`
+	Name         string              `yaml:"name"`
+	Binary       string              `yaml:"binary"`
+	FileFlag     string              `yaml:"fileFlag"`
+	Template     Template            `yaml:"template"`
+	Variables    map[string]VarValue `yaml:"variables,omitempty"`
+	RenderedPath string              `yaml:"renderedPath,omitempty"`
 }
 
 type DuckConf struct {

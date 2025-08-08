@@ -11,7 +11,7 @@ default:                # default target ⇒ `duck build`
   variables:
     PROJECT: my-service
     DATE: !cmd date +%Y-%m-%d
-  cacheFile: Makefile
+  renderedPath: Makefile
 
 targets:
   test:                  # executed with `duck test`
@@ -25,7 +25,7 @@ targets:
       allowMissing: true                    # missing vars => empty string
     variables:
       GO_VERSION: !env GO_VERSION
-      PLATFORM: linux/amd64
+      PLATFORM: Darwin
     args: ["--quiet"]
 
 settings:

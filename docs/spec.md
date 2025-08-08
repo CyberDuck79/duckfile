@@ -29,7 +29,7 @@ The file `.duck.yaml` (or `.duck.yml`, `duck.yaml`, `duck.yml`) is the single so
 | `fileFlag` | String | ✔ | CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
 | `template` | Template object | ✔ | Where to find the template file. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
-| `cacheFile` | String | ✖ | Destination path in the project after rendering. Default: `.duck/<target>/<basename>`. |
+| `renderedPath` | String | ✖ | Destination path in the project after rendering. Default: `.duck/<target>/<basename>`. |
 | `args` | String or String[] | ✖ | Default extra arguments always passed to the binary before user-provided ones. |
 
 ## 4. Template object
@@ -86,7 +86,7 @@ Notes
 
 The rendered template is stored at  
 `.duck/objects/<key>/<basename>`  
-and symlinked / copied to `cacheFile`.
+and symlinked / copied to `renderedPath`.
 
 ## 8. Example config
 
@@ -104,7 +104,7 @@ default:                # default target ⇒ `duck build`
   variables:
     PROJECT: my-service
     DATE: !cmd date +%Y-%m-%d
-  cacheFile: .duck/Makefile
+  renderedPath: .duck/Makefile
 
 targets:
   test:                  # executed with `duck test`
