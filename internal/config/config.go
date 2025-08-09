@@ -96,7 +96,9 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type Target struct {
-	Name         string              `yaml:"name"`
+	Name string `yaml:"name"`
+	// Description is an optional human readable explanation printed by `duck list`.
+	Description  string              `yaml:"description,omitempty"`
 	Binary       string              `yaml:"binary,omitempty"`
 	FileFlag     string              `yaml:"fileFlag,omitempty"`
 	Template     Template            `yaml:"template"`
@@ -165,6 +167,19 @@ func (c *DuckConf) Validate() error {
 	// default target
 	if err := validateTarget(c.Default, "default"); err != nil {
 		return err
+	}
+	// Detect conflict: default.Name must not clash with any named target key
+	if strings.TrimSpace(c.Default.Name) != "" {
+		if c.Targets != nil {
+			if _, exists := c.Targets[c.Default.Name]; exists {
+				return fmt.Errorf("default target name %q conflicts with a named target key; rename either the default's name or the conflicting target", c.Default.Name)
+			}
+		}
+	}
+	if c.Targets != nil {
+		if _, exists := c.Targets["default"]; exists {
+			return fmt.Errorf("default is not allowed as a named target")
+		}
 	}
 	for name, t := range c.Targets {
 		if err := validateTarget(t, name); err != nil {

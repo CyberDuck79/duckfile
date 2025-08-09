@@ -25,6 +25,7 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `name` | String | ✔ (for `default`; auto-derived in `targets`) | Human readable label, used in logs. |
+| `description` | String | ✖ | Optional longer explanation shown in `duck list`. |
 | `binary` | String | ✖ | Executable to launch (e.g. `make`, `task`, `helm`). Optional for sync/clean-only workflows. |
 | `fileFlag` | String | Cond. | Required when `binary` is set. CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
 | `template` | Template object | ✔ | Where to find the template file. |
