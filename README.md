@@ -9,6 +9,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 ## Features
 - Git-sourced templates: repo + ref + path
 - Variable tags: !env, !cmd, !file, and literals
+- Target descriptions + `duck list` for discoverability
 - Go templates with Sprig functions
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
@@ -75,6 +76,11 @@ go run ./cmd/duck
 
 # run a named target and pass additional args after --
 go run ./cmd/duck test --
+
+# list targets (names, binaries, descriptions)
+go run ./cmd/duck list
+# include remote info / variable kinds / execution line
+go run ./cmd/duck list -rve
 
 # render-only workflows (no binary execution)
 # sync all targets into cache and update symlinks
