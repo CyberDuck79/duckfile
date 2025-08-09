@@ -58,7 +58,7 @@ A variable value is either a scalar or a tagged scalar beginning with `!`.
 
 Notes:
 - Shell commands run with `/bin/sh -c`. Trailing newlines are trimmed.
-- Values are computed per render.
+- Values are computed per sync (each binary exec through duck calls a sync).
 
 ## 6. Settings object
 

@@ -1,7 +1,7 @@
-![Logo](assets/logo.png)
+![Logo](assets/logo_text.svg)
 
 
-# duckfile
+# Duckfile
 Universal remote templating for DevOps tools
 
 Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config as remote templates, render them locally with variables, and run the tool seamlessly.
@@ -87,17 +87,17 @@ go run ./cmd/duck clean test
 ```
 
 ## How it works (MVP)
-- Clone/fetch the template repo at the requested ref.
 - Resolve variables:
   - !env NAME → os.Getenv(NAME)
   - !cmd SHELL → /bin/sh -c SHELL (trimmed)
   - !file PATH → file contents
   - literal scalars (string/number/bool)
-- Render the template using Go text/template + Sprig.
 - Deterministic caching:
   - key = SHA1(repo + ref + path + resolvedVarsJSON)
-  - rendered file stored under .duck/objects/<key>/<basename>
-  - a symlink at renderedPath (or .duck/<target>/<basename>) points to the object
+- if the cache key is new, clone/fetch the template repo at the requested ref.
+- Render the template using Go text/template + Sprig.
+- rendered file stored under .duck/objects/<key>/<basename>
+- a symlink at renderedPath (or .duck/<target>/<basename>) points to the object
 - Execute the tool: binary fileFlag renderedPath [args …]
 - Or use `duck sync` for render-only workflows (no `binary` required)
 
