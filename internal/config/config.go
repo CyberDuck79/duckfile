@@ -44,6 +44,25 @@ type VarValue struct {
 	Value any    // for literal
 }
 
+// MarshalYAML enables preserving custom tags when writing config files.
+func (v VarValue) MarshalYAML() (any, error) {
+	switch v.Kind {
+	case VarEnv:
+		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!env", Value: v.Arg}
+		return n, nil
+	case VarCmd:
+		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!cmd", Value: v.Arg}
+		return n, nil
+	case VarFile:
+		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!file", Value: v.Arg}
+		return n, nil
+	case VarLiteral:
+		return v.Value, nil
+	default:
+		return v.Value, nil
+	}
+}
+
 func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 	// Custom tags we accept: !env, !cmd, !file
 	switch node.Tag {
@@ -113,6 +132,21 @@ type DuckConf struct {
 	Targets map[string]Target `yaml:"targets"`
 }
 
+// Save writes the configuration to disk as YAML.
+func (c *DuckConf) Save(path string) error {
+	if c.Version == 0 {
+		c.Version = 1
+	}
+	if c.Targets == nil {
+		c.Targets = map[string]Target{}
+	}
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o644)
+}
+
 func Load(path string) (*DuckConf, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -164,7 +198,6 @@ func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
 // - binary is optional
 // - fileFlag and args are only allowed when binary is set
 func (c *DuckConf) Validate() error {
-	// default target
 	if err := validateTarget(c.Default, "default"); err != nil {
 		return err
 	}
@@ -201,3 +234,12 @@ func validateTarget(t Target, name string) error {
 	}
 	return nil
 }
+
+// NewLiteralVar helper.
+func NewLiteralVar(val any) VarValue  { return VarValue{Kind: VarLiteral, Value: val} }
+func NewEnvVar(name string) VarValue  { return VarValue{Kind: VarEnv, Arg: name} }
+func NewCmdVar(cmd string) VarValue   { return VarValue{Kind: VarCmd, Arg: cmd} }
+func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path} }
+
+// ValidateTarget exposes target validation rules for external callers.
+func ValidateTarget(t Target, name string) error { return validateTarget(t, name) }
