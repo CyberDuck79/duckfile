@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// test seam
+var runExec = run.Exec
+
 var Version = "dev"
 
 var rootCmd = &cobra.Command{
@@ -94,7 +97,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// 4. execute
-		return run.Exec(cfg, target, binArgs)
+		return runExec(cfg, target, binArgs)
 	},
 }
 

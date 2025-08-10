@@ -47,7 +47,7 @@ targets:
     fileFlag: --taskfile
     template:
       repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: v2.3.1
+      ref: v2.3.3
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }  # avoid Task's {{ }}
       allowMissing: true                   # missing vars => ""
