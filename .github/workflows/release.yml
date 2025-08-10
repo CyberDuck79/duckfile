@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write   # needed to push tags and create releases
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Compute next semantic version
+        id: version
+        run: |
+          bash .github/scripts/next_version.sh
+          echo "next_version=$(cat NEXT_VERSION)" >> $GITHUB_OUTPUT
+          echo "last_tag=$(cat LAST_TAG)" >> $GITHUB_OUTPUT
+          echo "NEXT_VERSION=$(cat NEXT_VERSION)" >> $GITHUB_ENV
+          echo "LAST_TAG=$(cat LAST_TAG)" >> $GITHUB_ENV
+
+      - name: Stop if no new version
+        if: steps.version.outputs.next_version == steps.version.outputs.last_tag
+        run: echo "No conventional commit requiring a version bump. Skipping release." && exit 0
+
+      - name: Run tests
+        run: go test -race ./...
+
+      - name: Tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "$NEXT_VERSION"
+          git push origin "$NEXT_VERSION"
+
+      - name: Build binaries
+        env:
+          VERSION: ${{ env.NEXT_VERSION }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          matrix_oses="linux darwin windows"
+          matrix_arches="amd64 arm64"
+          for os in $matrix_oses; do
+            for arch in $matrix_arches; do
+              # Skip windows/arm64 if not supported by current Go toolchain (older versions)
+              if [ "$os" = "windows" ] && [ "$arch" = "arm64" ]; then
+                continue
+              fi
+              ext=""
+              if [ "$os" = "windows" ]; then ext=".exe"; fi
+              BIN="duck_${VERSION}_${os}_${arch}${ext}"
+              echo "Building $BIN"
+              GOOS=$os GOARCH=$arch go build -ldflags "-s -w -X main.Version=${VERSION#v}" -o "dist/$BIN" ./cmd/duck
+            done
+          done
+          ls -1 dist
+
+      - name: Generate release notes
+        run: |
+          echo "# Release $NEXT_VERSION" > RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
+          echo "Changes since $LAST_TAG:" >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
+          # Categorize commits
+            echo "## Features" >> RELEASE_NOTES.md
+          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* feat" || echo "* None" >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
+          echo "## Fixes" >> RELEASE_NOTES.md
+          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* fix" || echo "* None" >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
+          echo "## Other" >> RELEASE_NOTES.md
+          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -Ev "^\* (feat|fix)" || echo "* None" >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
+          echo "---" >> RELEASE_NOTES.md
+          echo "Full commit log:" >> RELEASE_NOTES.md
+          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES.md
+          echo "Generated on $(date -u)" >> RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.NEXT_VERSION }}
+          name: ${{ env.NEXT_VERSION }}
+          body_path: RELEASE_NOTES.md
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
