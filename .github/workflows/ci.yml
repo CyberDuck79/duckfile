@@ -30,9 +30,9 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           go test -race ./... -count=1 -covermode=atomic -coverprofile=coverage.txt
-          go tool cover -func=coverage.txt | tee coverage_summary.txt
+          go tool cover -func=coverage.txt
           # Extract total coverage for job summary
-          total=$(grep '^total:' coverage_summary.txt | awk '{print $3}')
+          total=$(grep '^total:' coverage.txt | awk '{print $3}')
           echo "Total coverage: $total" >> $GITHUB_STEP_SUMMARY
 
       - name: Vet
@@ -44,14 +44,11 @@ jobs:
           name: coverage
           path: |
             coverage.txt
-            coverage_summary.txt
 
-      # - name: Upload coverage to Codecov
-      #   if: always()
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     files: coverage.txt
-      #     disable_search: true
-      #     flags: unittests
-      #     fail_ci_if_error: true
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unittests
+          fail_ci_if_error: true
