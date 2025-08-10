@@ -7,6 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TestVarValueUnmarshalBasics verifies that custom YAML tags (!env, !cmd, !file) and
+// plain scalar types (string/int/float/bool) are decoded into the expected VarValue
+// kind/fields.
 func TestVarValueUnmarshalBasics(t *testing.T) {
 	yml := `
 str: hello
@@ -36,6 +39,8 @@ fileVar: !file ./some/path
 	}
 }
 
+// TestArgListUnmarshal ensures ArgList accepts a scalar (single arg), an array of
+// scalars (multiple args), and an empty string mapping to an empty slice.
 func TestArgListUnmarshal(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -59,6 +64,8 @@ func TestArgListUnmarshal(t *testing.T) {
 	}
 }
 
+// TestValidateTargetBinaryRules checks validation rejects fileFlag or args when
+// binary is absent, and accepts them when binary is present.
 func TestValidateTargetBinaryRules(t *testing.T) {
 	t1 := Target{Binary: "", FileFlag: "-f"}
 	if err := ValidateTarget(t1, "x"); err == nil {
@@ -74,6 +81,8 @@ func TestValidateTargetBinaryRules(t *testing.T) {
 	}
 }
 
+// TestDuckConfValidateConflicts ensures config validation detects a name clash
+// between the default target's Name and a named target key.
 func TestDuckConfValidateConflicts(t *testing.T) {
 	cfg := &DuckConf{Version: 1, Default: Target{Name: "build", Template: Template{Repo: "r", Path: "p"}}, Targets: map[string]Target{}}
 	if err := cfg.Validate(); err != nil {

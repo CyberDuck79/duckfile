@@ -18,6 +18,8 @@ func writeConfig(t *testing.T, dir string, body string) {
 	}
 }
 
+// TestRootSelectsDefault ensures invoking the root command with no target
+// selects and executes the default target.
 func TestRootSelectsDefault(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
@@ -54,6 +56,7 @@ default:
 	}
 }
 
+// TestRootUnknownTarget confirms an unknown CLI target results in an error path.
 func TestRootUnknownTarget(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
@@ -81,6 +84,8 @@ default:
 	}
 }
 
+// TestRootVersionFlag validates that the --version flag short-circuits normal
+// execution and prints the version string.
 func TestRootVersionFlag(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
@@ -113,6 +118,9 @@ func TestRootVersionFlag(t *testing.T) {
 		t.Fatalf("missing version output: %q", buf.String())
 	}
 }
+
+// TestRootTargetAliasToDefaultName verifies the human-readable default target
+// name is treated as an alias to "default".
 func TestRootTargetAliasToDefaultName(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
@@ -148,6 +156,8 @@ default:
 	}
 }
 
+// TestRootPassThroughArgs checks that arguments after "--" are forwarded as
+// passthrough args to the underlying execution call.
 func TestRootPassThroughArgs(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
