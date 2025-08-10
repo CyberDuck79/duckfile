@@ -2,7 +2,7 @@
 
 <!-- Badges -->
 [![CI](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml/badge.svg)](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/cyberduck79/duckfile/graph/badge.svg?token=J1J37CFA11)](https://codecov.io/github/cyberduck79/duckfile)
+[![Coverage Status](https://coveralls.io/repos/github/CyberDuck79/duckfile/badge.svg?branch=main)](https://coveralls.io/github/CyberDuck79/duckfile?branch=main)
 [![Go Reference](https://pkg.go.dev/badge/github.com/CyberDuck79/duckfile.svg)](https://pkg.go.dev/github.com/CyberDuck79/duckfile)
 [![Go Report Card](https://goreportcard.com/badge/github.com/CyberDuck79/duckfile)](https://goreportcard.com/report/github.com/CyberDuck79/duckfile)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

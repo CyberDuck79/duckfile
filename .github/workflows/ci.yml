@@ -48,15 +48,8 @@ jobs:
             coverage.txt
             coverage_summary.txt
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.txt
-          disable_search: true
-          flags: unittests
-          verbose: true
-          fail_ci_if_error: true
-        env:
-          CODECOV_LOG_LEVEL: debug
+          path-to-profile: coverage.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
