@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -32,10 +32,6 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           go test -race ./... -count=1 -covermode=atomic -coverprofile=coverage.txt
-          # Normalize Go coverprofile paths: strip module import prefix so Codecov maps files on main
-          MODULE=$(go list -m)
-          # Only rewrite lines that start with the module path (skip the first 'mode:' line)
-          sed -E "s#^${MODULE}/##" coverage.txt > coverage.norm && mv coverage.norm coverage.txt
           go tool cover -func=coverage.txt | tee coverage_summary.txt
           # Extract total coverage for job summary
           total=$(grep '^total:' coverage_summary.txt | awk '{print $3}')
@@ -60,5 +56,4 @@ jobs:
           files: coverage.txt
           disable_search: true
           flags: unittests
-          verbose: true
           fail_ci_if_error: true
