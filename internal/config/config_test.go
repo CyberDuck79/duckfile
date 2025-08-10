@@ -93,3 +93,41 @@ func TestDuckConfValidateConflicts(t *testing.T) {
 		t.Fatalf("expected conflict error")
 	}
 }
+
+// TestDuckConfDisallowNamedDefault ensures a named target key "default" is rejected.
+func TestDuckConfDisallowNamedDefault(t *testing.T) {
+	cfg := &DuckConf{Version: 1, Default: Target{Template: Template{Repo: "r", Path: "p"}}, Targets: map[string]Target{"default": {Template: Template{Repo: "r", Path: "p"}}}}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "not allowed as a named target") {
+		t.Fatalf("expected named default target error, got %v", err)
+	}
+}
+
+// TestValidateTargetFileFlagRequiredWhenBinary ensures fileFlag is mandatory when binary is set.
+func TestValidateTargetFileFlagRequiredWhenBinary(t *testing.T) {
+	t1 := Target{Binary: "echo", FileFlag: ""}
+	if err := ValidateTarget(t1, "x"); err == nil || !strings.Contains(err.Error(), "fileFlag is required") {
+		t.Fatalf("expected fileFlag required error, got %v", err)
+	}
+	t2 := Target{Binary: "echo", FileFlag: "-f"}
+	if err := ValidateTarget(t2, "x"); err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+}
+
+// TestArgListScalarVsArrayEquivalence confirms a scalar arg and single-element array produce same ArgList.
+func TestArgListScalarVsArrayEquivalence(t *testing.T) {
+	y1 := "args: -v"
+	y2 := "args: ['-v']"
+	var a1, a2 struct {
+		Args ArgList `yaml:"args"`
+	}
+	if err := yaml.Unmarshal([]byte(y1), &a1); err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal([]byte(y2), &a2); err != nil {
+		t.Fatal(err)
+	}
+	if len(a1.Args) != 1 || len(a2.Args) != 1 || a1.Args[0] != a2.Args[0] {
+		t.Fatalf("scalar vs array mismatch: %v %v", a1.Args, a2.Args)
+	}
+}

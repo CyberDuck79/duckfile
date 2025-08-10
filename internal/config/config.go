@@ -231,6 +231,10 @@ func validateTarget(t Target, name string) error {
 		if len(t.Args) > 0 {
 			return fmt.Errorf("target %q: args are not allowed without binary", name)
 		}
+	} else { // binary present
+		if strings.TrimSpace(t.FileFlag) == "" {
+			return fmt.Errorf("target %q: fileFlag is required when binary is set", name)
+		}
 	}
 	return nil
 }
