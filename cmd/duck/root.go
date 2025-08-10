@@ -13,6 +13,8 @@ import (
 // test seam
 var runExec = run.Exec
 
+// Version is injected at build time with: go build -ldflags "-X main.Version=<version>"
+// Defaults to "dev" when not set.
 var Version = "dev"
 
 var rootCmd = &cobra.Command{
