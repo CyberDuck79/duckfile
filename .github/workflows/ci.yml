@@ -17,8 +17,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -48,12 +46,12 @@ jobs:
             coverage.txt
             coverage_summary.txt
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.txt
-          disable_search: true
-          flags: unittests
-          fail_ci_if_error: true
+      # - name: Upload coverage to Codecov
+      #   if: always()
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     files: coverage.txt
+      #     disable_search: true
+      #     flags: unittests
+      #     fail_ci_if_error: true
