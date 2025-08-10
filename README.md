@@ -2,7 +2,7 @@
 
 <!-- Badges -->
 [![CI](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml/badge.svg)](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/CyberDuck79/duckfile/branch/main/graph/badge.svg)](https://codecov.io/gh/CyberDuck79/duckfile)
+[![Coverage Status](https://coveralls.io/repos/github/CyberDuck79/duckfile/badge.svg?branch=main)](https://coveralls.io/github/CyberDuck79/duckfile?branch=main)
 [![Go Reference](https://pkg.go.dev/badge/github.com/CyberDuck79/duckfile.svg)](https://pkg.go.dev/github.com/CyberDuck79/duckfile)
 [![Go Report Card](https://goreportcard.com/badge/github.com/CyberDuck79/duckfile)](https://goreportcard.com/report/github.com/CyberDuck79/duckfile)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -76,27 +76,27 @@ targets:
 2) Run
 ```sh
 # print version
-go run ./cmd/duck --version
+duck --version
 
 # run default target (renders Makefile and calls make -f Makefile)
-go run ./cmd/duck
+duck
 
 # run a named target and pass additional args after --
-go run ./cmd/duck test --
+duck test --
 
 # list targets (names, binaries, descriptions)
-go run ./cmd/duck list
+duck list
 # include remote info / variable kinds / execution line
-go run ./cmd/duck list -rve
+duck list -rve
 
 # render-only workflows (no binary execution)
 # sync all targets into cache and update symlinks
-go run ./cmd/duck sync
+duck sync
 # force re-render ignoring cache
-go run ./cmd/duck sync -f
+duck sync -f
 # clean cache for all or a single target
-go run ./cmd/duck clean
-go run ./cmd/duck clean test
+duck clean
+duck clean test
 ```
 
 ## How it works (MVP)
