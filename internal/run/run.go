@@ -21,6 +21,14 @@ import (
 	sprig "github.com/Masterminds/sprig/v3"
 )
 
+// Test seams (overridable in tests for determinism / stubbing)
+var (
+	nowFunc     = time.Now
+	getenvFunc  = os.Getenv
+	execCommand = exec.Command
+	cloneFunc   = git.CloneInto
+)
+
 // Exec renders and executes one target.
 func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	t := cfg.Default
@@ -67,7 +75,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	// 4. If object is missing, fetch template repo and render it; otherwise, skip cloning
 	if _, statErr := os.Stat(objFile); statErr != nil {
 		// Fetch template repository at the requested ref
-		repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
+		repoDir, err := cloneFunc(t.Template.Repo, t.Template.Ref, cacheDir)
 		if err != nil {
 			return err
 		}
@@ -113,7 +121,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	// Order: [fileFlag linkPath] + target default args + user passthrough args
 	args := append([]string{t.FileFlag, linkPath}, []string(t.Args)...)
 	args = append(args, passthrough...)
-	cmd := exec.Command(t.Binary, args...)
+	cmd := execCommand(t.Binary, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()
 }
@@ -133,8 +141,8 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 
 	// Build template with sprig functions and a small set of extras
 	funcMap := sprig.TxtFuncMap()
-	funcMap["now"] = time.Now
-	funcMap["env"] = os.Getenv
+	funcMap["now"] = nowFunc
+	funcMap["env"] = getenvFunc
 
 	// Delimiters: default {{ }}, overridable by config
 	left, right := "{{", "}}"
@@ -317,7 +325,7 @@ func syncOne(targetName string, t config.Target, force bool) error {
 	}
 	if needRender {
 		// Always fetch/clone then render
-		repoDir, err := git.CloneInto(t.Template.Repo, t.Template.Ref, cacheDir)
+		repoDir, err := cloneFunc(t.Template.Repo, t.Template.Ref, cacheDir)
 		if err != nil {
 			return err
 		}

@@ -1,5 +1,12 @@
 ![Logo](assets/logo_text.svg)
 
+<!-- Badges -->
+[![CI](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml/badge.svg)](https://github.com/CyberDuck79/duckfile/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/CyberDuck79/duckfile/branch/main/graph/badge.svg)](https://codecov.io/gh/CyberDuck79/duckfile)
+[![Go Reference](https://pkg.go.dev/badge/github.com/CyberDuck79/duckfile.svg)](https://pkg.go.dev/github.com/CyberDuck79/duckfile)
+[![Go Report Card](https://goreportcard.com/badge/github.com/CyberDuck79/duckfile)](https://goreportcard.com/report/github.com/CyberDuck79/duckfile)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 
 # Duckfile
 Universal remote templating for DevOps tools
@@ -47,7 +54,7 @@ targets:
     fileFlag: --taskfile
     template:
       repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: v2.3.1
+      ref: v2.3.3
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }  # avoid Task's {{ }}
       allowMissing: true                   # missing vars => ""
