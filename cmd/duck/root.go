@@ -27,9 +27,8 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Manual flag parsing
 		var (
-			showVersion bool
-			target      string
-			binArgs     []string
+			target  string
+			binArgs []string
 		)
 
 		// Find "--" separator
@@ -47,24 +46,28 @@ var rootCmd = &cobra.Command{
 			binArgs = args[sepIdx+1:]
 		}
 
-		// Parse duckflags
+		var wantVerbose, wantDebug bool
 		for i := 0; i < len(duckArgs); i++ {
 			switch duckArgs[i] {
-			case "-v", "--version":
-				showVersion = true
 			case "-h", "--help":
 				return cmd.Help()
+			case "-v", "--verbose":
+				wantVerbose = true
+			case "-d", "--debug":
+				wantDebug = true
+			case "-vd", "-dv":
+				wantVerbose = true
+				wantDebug = true
 			default:
-				// First non-flag is target
 				if target == "" && !strings.HasPrefix(duckArgs[i], "-") {
 					target = duckArgs[i]
 				}
 			}
 		}
-
-		if showVersion {
-			fmt.Println("duck version", Version)
-			return nil
+		if wantDebug {
+			run.SetLogLevel(run.LogDebug)
+		} else if wantVerbose {
+			run.SetLogLevel(run.LogVerbose)
 		}
 
 		// 1. detect config file

@@ -76,7 +76,7 @@ targets:
 2) Run
 ```sh
 # print version
-duck --version
+duck version
 
 # run default target (renders Makefile and calls make -f Makefile)
 duck
@@ -97,6 +97,13 @@ duck sync -f
 # clean cache for all or a single target
 duck clean
 duck clean test
+
+# verbosity / debugging
+# show high-level steps (render, cache hits, pruning, exec line)
+duck -v
+# extremely detailed (includes variable values, paths, clone steps)
+duck --debug
+duck sync -vd   # combine flags on subcommands
 ```
 
 ## How it works (MVP)

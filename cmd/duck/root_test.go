@@ -86,16 +86,16 @@ default:
 
 // TestRootVersionFlag validates that the --version flag short-circuits normal
 // execution and prints the version string.
-func TestRootVersionFlag(t *testing.T) {
+func TestVersionSubcommand(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
-
-  name: build
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: local
-    path: file.tpl
+default:
+    name: build
+    binary: echo
+    fileFlag: -f
+    template:
+        repo: local
+        path: file.tpl
 `)
 	oldWd, _ := os.Getwd()
 	os.Chdir(dir)
@@ -103,7 +103,7 @@ func TestRootVersionFlag(t *testing.T) {
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	rootCmd.SetArgs([]string{"--version"})
+	rootCmd.SetArgs([]string{"version"})
 	rootCmd.SetOut(&bytes.Buffer{})
 	rootCmd.SetErr(&bytes.Buffer{})
 	err := rootCmd.Execute()
