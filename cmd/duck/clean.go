@@ -6,6 +6,8 @@ import (
 )
 
 func init() {
+	var cleanVerbose bool
+	var cleanDebug bool
 	cleanCmd := &cobra.Command{
 		Use:   "clean [target]",
 		Short: "Purge cached objects and per-target directories",
@@ -20,8 +22,15 @@ func init() {
 			if len(args) > 0 {
 				target = args[0]
 			}
+			if cleanDebug {
+				run.SetLogLevel(run.LogDebug)
+			} else if cleanVerbose {
+				run.SetLogLevel(run.LogVerbose)
+			}
 			return run.Clean(cfg, target)
 		},
 	}
+	cleanCmd.Flags().BoolVarP(&cleanVerbose, "verbose", "v", false, "Verbose output (steps)")
+	cleanCmd.Flags().BoolVarP(&cleanDebug, "debug", "d", false, "Debug output (very detailed)")
 	rootCmd.AddCommand(cleanCmd)
 }
