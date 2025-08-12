@@ -107,6 +107,7 @@ jobs:
           echo "---" >> RELEASE_NOTES.md
           echo "Full commit log:" >> RELEASE_NOTES.md
           git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
           echo "---" >> RELEASE_NOTES.md
           echo "Generated on $(date -u)" >> RELEASE_NOTES.md
 
