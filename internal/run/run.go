@@ -29,22 +29,39 @@ var (
 	cloneFunc   = git.CloneInto
 )
 
+// Search target from configuration, return effective target name and configuration or error if unknown target.
+func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Target, error) {
+	// Determine the effective target key
+	key := targetName
+	if strings.TrimSpace(key) == "" || key == "default" { // "default" still accepted for backwards CLI invocation
+		key = cfg.Default
+	}
+	t, ok := cfg.Targets[key]
+	if !ok {
+		// Provide helpful list
+		keys := make([]string, 0, len(cfg.Targets))
+		for k := range cfg.Targets {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return "", config.Target{}, fmt.Errorf("unknown target %q; available: %s", key, strings.Join(keys, ", "))
+	}
+	return key, t, nil
+}
+
 // Exec renders and executes one target.
 func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
-	t := cfg.Default
-	if targetName != "" && targetName != "default" {
-		var ok bool
-		if t, ok = cfg.Targets[targetName]; !ok {
-			return fmt.Errorf("unknown target %q", targetName)
-		}
+	// Determine the effective target key
+	key, t, err := searchTarget(cfg, targetName)
+	if err != nil {
+		return err
 	}
 
-	logVerbose("exec target %q", targetOrDefault(targetName, "default"))
+	logVerbose("exec target %q", key)
 
 	// Ensure executable configuration is present
 	if strings.TrimSpace(t.Binary) == "" {
-		return fmt.Errorf("target %q has no binary configured; use 'duck sync%s' to render without executing",
-			targetOrDefault(targetName, "default"), optTargetSuffix(targetName))
+		return fmt.Errorf("target %q has no binary configured; use 'duck sync %s' to render without executing", key, key)
 	}
 
 	// 1. Resolve variables first (no need to clone to do this)
@@ -62,18 +79,18 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	// 2. Compute deterministic cache key and object path
 	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
 
-	key, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
+	cacheKey, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
 	if err != nil {
 		return err
 	}
-	objDir := filepath.Join(".duck", "objects", key)
+	objDir := filepath.Join(".duck", "objects", cacheKey)
 	objFile := filepath.Join(objDir, base)
 	// Ensure objects dir exists only if we will write into it later.
-	logVerbose("cache key %.12s", key)
+	logVerbose("cache key %.12s", cacheKey)
 	logDebug("object dir %s", objDir)
 
 	// 3. Prepare per-target cache dir and compute symlink path
-	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	cacheDir := filepath.Join(".duck", key)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
@@ -130,7 +147,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	logVerbose("symlink %s -> %s", linkPath, objFile)
 
 	// 7. If the key changed, remove the old object directory to free cache
-	if oldKey != "" && oldKey != key {
+	if oldKey != "" && oldKey != cacheKey {
 		logVerbose("prune old key %s", oldKey)
 		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
 	}
@@ -143,13 +160,6 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	logVerbose("exec: %s %s", t.Binary, strings.Join(args, " "))
 	return cmd.Run()
-}
-
-func targetOrDefault(t, d string) string {
-	if t == "" {
-		return d
-	}
-	return t
 }
 
 func renderTemplate(src, dst string, targ config.Target, data map[string]any) error {
@@ -314,7 +324,7 @@ func Sync(cfg *config.DuckConf, targetName string, force bool) error {
 }
 
 func syncOne(targetName string, t config.Target, force bool) error {
-	logVerbose("sync %q", targetOrDefault(targetName, "default"))
+	logVerbose("sync %q", targetName)
 	// Resolve variables and compute key/paths
 	vars, err := resolveVariables(t.Variables)
 	if err != nil {
@@ -329,7 +339,7 @@ func syncOne(targetName string, t config.Target, force bool) error {
 	objDir := filepath.Join(".duck", "objects", key)
 	objFile := filepath.Join(objDir, base)
 
-	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	cacheDir := filepath.Join(".duck", targetName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
@@ -382,31 +392,25 @@ func syncOne(targetName string, t config.Target, force bool) error {
 // If targetName is empty, purge everything. Otherwise, clean only that target’s cache
 // and its currently referenced object.
 func Clean(cfg *config.DuckConf, targetName string) error {
-	if strings.TrimSpace(targetName) == "" {
+	if strings.TrimSpace(targetName) == "" { // clean all
 		logVerbose("clean all")
-		// Remove per-target dirs and unlink symlinks
-		targets, _ := collectTargets(cfg, "")
-		for name, t := range targets {
+		for name, t := range cfg.Targets {
 			_ = cleanOne(name, t)
 		}
-		// Finally, remove objects dir
 		return os.RemoveAll(filepath.Join(".duck", "objects"))
 	}
-	t, ok := cfg.Targets[targetName]
-	if !ok && targetName != "default" && targetName != "" {
-		return fmt.Errorf("unknown target %q", targetName)
+	// Determine the effective target key
+	key, t, err := searchTarget(cfg, targetName)
+	if err != nil {
+		return err
 	}
-	if targetName == "default" {
-		t = cfg.Default
-		targetName = "default"
-	}
-	logVerbose("clean %q", targetName)
-	return cleanOne(targetName, t)
+	logVerbose("clean %q", key)
+	return cleanOne(key, t)
 }
 
 func cleanOne(targetName string, t config.Target) error {
 	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
-	cacheDir := filepath.Join(".duck", targetOrDefault(targetName, "default"))
+	cacheDir := filepath.Join(".duck", targetName)
 	linkPath := t.RenderedPath
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base)
@@ -445,28 +449,17 @@ func detectKeyFromSymlink(linkPath string) string {
 
 func collectTargets(cfg *config.DuckConf, targetName string) (map[string]config.Target, error) {
 	res := map[string]config.Target{}
-	if strings.TrimSpace(targetName) == "" {
-		res["default"] = cfg.Default
+	if strings.TrimSpace(targetName) == "" { // all
 		for k, v := range cfg.Targets {
 			res[k] = v
 		}
 		return res, nil
 	}
-	if targetName == "default" {
-		res["default"] = cfg.Default
-		return res, nil
+	// Determine the effective target key
+	key, t, err := searchTarget(cfg, targetName)
+	if err != nil {
+		return nil, err
 	}
-	t, ok := cfg.Targets[targetName]
-	if !ok {
-		return nil, fmt.Errorf("unknown target %q", targetName)
-	}
-	res[targetName] = t
+	res[key] = t
 	return res, nil
-}
-
-func optTargetSuffix(name string) string {
-	if strings.TrimSpace(name) == "" {
-		return ""
-	}
-	return " " + name
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -115,7 +116,6 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type Target struct {
-	Name string `yaml:"name"`
 	// Description is an optional human readable explanation printed by `duck list`.
 	Description  string              `yaml:"description,omitempty"`
 	Binary       string              `yaml:"binary,omitempty"`
@@ -127,8 +127,9 @@ type Target struct {
 }
 
 type DuckConf struct {
-	Version int               `yaml:"version"`
-	Default Target            `yaml:"default"`
+	Version int `yaml:"version"`
+	// Default is the key of the target (in Targets) executed when the user omits a target.
+	Default string            `yaml:"default"`
 	Targets map[string]Target `yaml:"targets"`
 }
 
@@ -198,26 +199,26 @@ func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
 // - binary is optional
 // - fileFlag and args are only allowed when binary is set
 func (c *DuckConf) Validate() error {
-	if err := validateTarget(c.Default, "default"); err != nil {
-		return err
+	if strings.TrimSpace(c.Default) == "" {
+		return fmt.Errorf("default target key must be set to one of the declared targets")
 	}
-	// Detect conflict: default.Name must not clash with any named target key
-	if strings.TrimSpace(c.Default.Name) != "" {
-		if c.Targets != nil {
-			if _, exists := c.Targets[c.Default.Name]; exists {
-				return fmt.Errorf("default target name %q conflicts with a named target key; rename either the default's name or the conflicting target", c.Default.Name)
-			}
-		}
+	if len(c.Targets) == 0 {
+		return fmt.Errorf("no targets declared; 'targets' mapping must contain at least the default target '%s'", c.Default)
 	}
-	if c.Targets != nil {
-		if _, exists := c.Targets["default"]; exists {
-			return fmt.Errorf("default is not allowed as a named target")
-		}
-	}
+	// Validate each target
 	for name, t := range c.Targets {
 		if err := validateTarget(t, name); err != nil {
 			return err
 		}
+	}
+	if _, ok := c.Targets[c.Default]; !ok {
+		// Build list for diagnostics
+		keys := make([]string, 0, len(c.Targets))
+		for k := range c.Targets {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return fmt.Errorf("default target %q not found; available targets: %s", c.Default, strings.Join(keys, ", "))
 	}
 	return nil
 }

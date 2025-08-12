@@ -89,16 +89,9 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// Treat the human name of the default target as an alias unless it conflicts with an explicit named target.
-		if target != "" && target != "default" {
-			if target == cfg.Default.Name {
-				target = "default"
-			}
-		}
-
-		// 3. If no target, use default
-		if target == "" {
-			target = "default"
+		// 3. If no target or explicit legacy "default", translate to configured default key
+		if target == "" || target == "default" {
+			target = cfg.Default
 		}
 
 		// 4. execute

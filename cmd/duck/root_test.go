@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,20 +22,23 @@ func writeConfig(t *testing.T, dir string, body string) {
 func TestRootSelectsDefault(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
-default:
-  name: build
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: local
+default: build
+
+targets:
+  build:
+    name: build
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
     path: file.tpl
 `)
 	// stub runExec
 	called := false
 	orig := runExec
 	runExec = func(cfg *config.DuckConf, target string, args []string) error {
-		if target != "default" {
-			t.Fatalf("expected default got %s", target)
+		if target != "build" {
+			t.Fatalf("expected build got %s", target)
 		}
 		called = true
 		return nil
@@ -60,23 +62,21 @@ default:
 func TestRootUnknownTarget(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
-default:
-  name: build
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: local
+default: build
+
+targets:
+  build:
+    name: build
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
     path: file.tpl
 `)
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string) error {
-		return fmt.Errorf("unknown target %s", target)
-	}
-	defer func() { runExec = orig }()
 	oldWd, _ := os.Getwd()
 	os.Chdir(dir)
 	defer os.Chdir(oldWd)
-	rootCmd.SetArgs([]string{"doesnotexist"})
+	rootCmd.SetArgs([]string{"unknown"})
 	rootCmd.SetOut(&bytes.Buffer{})
 	rootCmd.SetErr(&bytes.Buffer{})
 	if err := rootCmd.Execute(); err == nil {
@@ -119,54 +119,20 @@ default:
 	}
 }
 
-// TestRootTargetAliasToDefaultName verifies the human-readable default target
-// name is treated as an alias to "default".
-func TestRootTargetAliasToDefaultName(t *testing.T) {
-	dir := t.TempDir()
-	writeConfig(t, dir, `version: 1
-default:
-  name: build
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: local
-    path: file.tpl
-`)
-	called := false
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string) error {
-		if target != "default" {
-			t.Fatalf("expected alias -> default, got %s", target)
-		}
-		called = true
-		return nil
-	}
-	defer func() { runExec = orig }()
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
-	rootCmd.SetArgs([]string{"build"})
-	rootCmd.SetOut(&bytes.Buffer{})
-	rootCmd.SetErr(&bytes.Buffer{})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected: %v", err)
-	}
-	if !called {
-		t.Fatalf("runExec not called")
-	}
-}
-
 // TestRootPassThroughArgs checks that arguments after "--" are forwarded as
 // passthrough args to the underlying execution call.
 func TestRootPassThroughArgs(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, `version: 1
-default:
-  name: build
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: local
+default: build
+
+targets:
+  build:
+    name: build
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
     path: file.tpl
 `)
 	captured := []string{}

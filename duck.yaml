@@ -2,20 +2,21 @@
 
 version: 1
 
-default:                # default target ⇒ `duck build` or `duck`
-  name: build
-  binary: make
-  fileFlag: -f
-  template:
-    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-    ref: main
-    path: Makefile.tpl
-  variables:
-    PROJECT: my-service
-    DATE: !cmd date +%Y-%m-%d
-  renderedPath: Makefile
+default: build
 
 targets:
+  build:
+    binary: make
+    fileFlag: -f
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: Makefile.tpl
+    variables:
+      PROJECT: my-service
+      DATE: !cmd date +%Y-%m-%d
+    renderedPath: Makefile
+
   test:                  # executed with `duck test`
     binary: task
     fileFlag: --taskfile
@@ -33,7 +34,7 @@ targets:
   docs:
     # No binary: this target is sync-only. Use `duck sync docs` to render.
     template:
-      repo: https://github.com/CyberDuck79/duckfile-test-docs-templates.git
+      repo: https://github.com/CyberDuck79/duckfile-test-docs-template.git
       ref: main
       path: index.md.tpl
     variables:

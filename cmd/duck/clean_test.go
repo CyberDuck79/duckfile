@@ -27,16 +27,17 @@ func stubCloneForClean(t *testing.T) {
 // writeCleanConfig writes config with default + t1
 func writeCleanConfig(t *testing.T, dir string) {
 	body := `version: 1
-default:
-  template:
-    repo: r1
-    path: a.tpl
-  binary: echo
-  fileFlag: -f
-  variables: {}
-  args: "--x"
-  name: build
+default: build
+  
 targets:
+  build:
+    template:
+      repo: r1
+      path: a.tpl
+    binary: echo
+    fileFlag: -f
+    variables: {}
+    args: "--x"
   t1:
     template:
       repo: r2
@@ -51,7 +52,7 @@ targets:
 }
 
 // syncAll renders both targets (used as precondition for clean tests)
-func syncAll(t *testing.T, dir string) {
+func syncAll(t *testing.T) {
 	rootCmd.SetArgs([]string{"sync"})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("sync precondition: %v", err)
@@ -66,7 +67,7 @@ func TestCLICleanSingleTarget(t *testing.T) {
 	old, _ := os.Getwd()
 	os.Chdir(dir)
 	defer os.Chdir(old)
-	syncAll(t, dir)
+	syncAll(t)
 	// capture other target symlink path before clean
 	otherLink := filepath.Join(dir, ".duck", "t1", "b")
 	if _, err := os.Lstat(otherLink); err != nil {
@@ -78,7 +79,7 @@ func TestCLICleanSingleTarget(t *testing.T) {
 		t.Fatalf("clean default: %v", err)
 	}
 	// default symlink removed
-	if _, err := os.Lstat(filepath.Join(dir, ".duck", "default", "a")); err == nil {
+	if _, err := os.Lstat(filepath.Join(dir, ".duck", "build", "a")); err == nil {
 		t.Fatalf("default symlink still present")
 	}
 	// other target still present
@@ -95,7 +96,7 @@ func TestCLICleanAll(t *testing.T) {
 	old, _ := os.Getwd()
 	os.Chdir(dir)
 	defer os.Chdir(old)
-	syncAll(t, dir)
+	syncAll(t)
 	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err != nil {
 		t.Fatalf("objects dir missing precondition")
 	}

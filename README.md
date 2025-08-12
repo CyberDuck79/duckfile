@@ -35,20 +35,21 @@ Go 1.21+ recommended.
 ```yaml
 version: 1
 
-default:
-  name: build
-  binary: make
-  fileFlag: -f
-  template:
-    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-    ref: main
-    path: Makefile.tpl
-  variables:
-    PROJECT: my-service
-    DATE: !cmd date +%Y-%m-%d
-  renderedPath: Makefile
+default: build
 
 targets:
+  build:
+    binary: make
+    fileFlag: -f
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: Makefile.tpl
+    variables:
+      PROJECT: my-service
+      DATE: !cmd date +%Y-%m-%d
+    renderedPath: Makefile
+
   test:
     binary: task
     fileFlag: --taskfile

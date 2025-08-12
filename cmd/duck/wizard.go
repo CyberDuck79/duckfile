@@ -23,21 +23,15 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 	var name string
 	var err error
 	if isDefault {
-		name, err = ask("Name (human readable) [build]: ")
-		if err != nil {
-			return config.Target{}, "", err
-		}
-		if name == "" {
-			name = "build"
-		}
+		name, err = ask("Default target key (called when <target> is not specified): ")
 	} else {
 		name, err = ask("Target key (CLI name): ")
-		if err != nil {
-			return config.Target{}, "", err
-		}
-		if name == "" {
-			return config.Target{}, "", fmt.Errorf("target key cannot be empty")
-		}
+	}
+	if err != nil {
+		return config.Target{}, "", err
+	}
+	if name == "" {
+		return config.Target{}, "", fmt.Errorf("target key cannot be empty")
 	}
 	binary, err := ask("Binary (leave empty for sync-only): ")
 	if err != nil {
@@ -121,14 +115,7 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 			vars[k] = config.NewLiteralVar(v)
 		}
 	}
-	targ := config.Target{
-		Name:         name,
-		Binary:       binary,
-		FileFlag:     fileFlag,
-		Template:     config.Template{Repo: repo, Ref: ref, Path: path, AllowMissing: allowMissing},
-		Variables:    vars,
-		RenderedPath: renderedPath,
-	}
+	targ := config.Target{Binary: binary, FileFlag: fileFlag, Template: config.Template{Repo: repo, Ref: ref, Path: path, AllowMissing: allowMissing}, Variables: vars, RenderedPath: renderedPath}
 	if err := config.ValidateTarget(targ, name); err != nil {
 		return config.Target{}, "", err
 	}
