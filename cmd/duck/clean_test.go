@@ -24,6 +24,21 @@ func stubCloneForClean(t *testing.T) {
 	t.Cleanup(func() { run.TestSetCloneFunc(saved) })
 }
 
+func listDuckContent(t *testing.T, dir string) []string {
+	// list .duck content
+	files, err := os.ReadDir(filepath.Join(dir, ".duck"))
+	if err != nil {
+		t.Fatalf("failed to read .duck dir: %v", err)
+	}
+	var names []string
+	for _, f := range files {
+		if f.IsDir() {
+			names = append(names, f.Name())
+		}
+	}
+	return names
+}
+
 // writeCleanConfig writes config with default + t1
 func writeCleanConfig(t *testing.T, dir string) {
 	body := `version: 1
@@ -59,6 +74,33 @@ func syncAll(t *testing.T) {
 	}
 }
 
+// TestCLICleanAll purges .duck/objects and per-target directories for all targets.
+func TestCLICleanAll(t *testing.T) {
+	dir := t.TempDir()
+	stubCloneForClean(t)
+	writeCleanConfig(t, dir)
+	old, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(old)
+	syncAll(t)
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err != nil {
+		t.Fatalf("objects dir missing precondition: %v", listDuckContent(t, dir))
+	}
+	rootCmd.SetArgs([]string{"clean"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("clean all: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err == nil {
+		t.Fatalf("objects dir still exists: %v", listDuckContent(t, dir))
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "build")); err == nil {
+		t.Fatalf("build dir still exists: %v", listDuckContent(t, dir))
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "t1")); err == nil {
+		t.Fatalf("t1 dir still exists: %v", listDuckContent(t, dir))
+	}
+}
+
 // TestCLICleanSingleTarget ensures cleaning one target leaves the other intact (its symlink/object remain).
 func TestCLICleanSingleTarget(t *testing.T) {
 	dir := t.TempDir()
@@ -68,6 +110,9 @@ func TestCLICleanSingleTarget(t *testing.T) {
 	os.Chdir(dir)
 	defer os.Chdir(old)
 	syncAll(t)
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err != nil {
+		t.Fatalf("objects dir missing precondition: %v", listDuckContent(t, dir))
+	}
 	// capture other target symlink path before clean
 	otherLink := filepath.Join(dir, ".duck", "t1", "b")
 	if _, err := os.Lstat(otherLink); err != nil {
@@ -80,41 +125,14 @@ func TestCLICleanSingleTarget(t *testing.T) {
 	}
 	// check build dir
 	if _, err := os.Lstat(filepath.Join(dir, ".duck", "build")); err == nil {
-		t.Fatalf("build dir still exists")
+		t.Fatalf("build dir still exists: %v", listDuckContent(t, dir))
 	}
 	// default symlink removed
 	if _, err := os.Lstat(filepath.Join(dir, ".duck", "build", "a")); err == nil {
-		t.Fatalf("default symlink still present")
+		t.Fatalf("default symlink still present: %v", listDuckContent(t, dir))
 	}
 	// other target still present
 	if _, err := os.Lstat(otherLink); err != nil {
-		t.Fatalf("t1 symlink removed unexpectedly")
-	}
-}
-
-// TestCLICleanAll purges .duck/objects and per-target directories for all targets.
-func TestCLICleanAll(t *testing.T) {
-	dir := t.TempDir()
-	stubCloneForClean(t)
-	writeCleanConfig(t, dir)
-	old, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(old)
-	syncAll(t)
-	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err != nil {
-		t.Fatalf("objects dir missing precondition")
-	}
-	rootCmd.SetArgs([]string{"clean"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("clean all: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err == nil {
-		t.Fatalf("objects dir still exists")
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".duck", "build")); err == nil {
-		t.Fatalf("build dir still exists")
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".duck", "t1")); err == nil {
-		t.Fatalf("t1 dir still exists")
+		t.Fatalf("t1 symlink removed unexpectedly: %v", listDuckContent(t, dir))
 	}
 }

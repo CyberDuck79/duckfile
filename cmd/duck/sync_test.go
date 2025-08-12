@@ -74,7 +74,7 @@ func stubClone(t *testing.T, content string) {
 		for _, n := range names {
 			p := filepath.Join(repoDir, n)
 			// Always overwrite to allow force re-render content changes; object file guarded by existing file unless force.
-			os.WriteFile(p, []byte(fmt.Sprintf("%s\n", content)), 0o644)
+			os.WriteFile(p, fmt.Appendf(nil, "%s\n", content), 0o644)
 		}
 		return repoDir, nil
 	})
@@ -97,6 +97,32 @@ func getSymlinkTarget(t *testing.T, link string) string {
 	}
 	abs, _ := filepath.Abs(dest)
 	return abs
+}
+
+// TestCLISyncForceRerender validates -f flag triggers re-render (modtime increase) while a plain
+// subsequent sync without -f skips rendering (modtime unchanged).
+func TestCLISyncForceRerender(t *testing.T) {
+	dir := t.TempDir()
+	writeSyncConfig(t, dir)
+	stubClone(t, "INITIAL1")
+	runSyncCLI(t, dir) // initial render
+	link := filepath.Join(dir, ".duck", "def", "default")
+	obj := getSymlinkTarget(t, link)
+	before, _ := os.ReadFile(obj)
+	// Plain sync (no -f) should NOT overwrite existing object; keep same content stub
+	runSyncCLI(t, dir)
+	mid, _ := os.ReadFile(obj)
+	if string(mid) != string(before) {
+		t.Fatalf("unexpected content change without -f: before=%q mid=%q", string(before), string(mid))
+	}
+	// Change stub content THEN force sync to induce update
+	stubClone(t, "UPDATED")
+	// Force sync should re-render (overwriting object file) even though key unchanged => content changes
+	runSyncCLI(t, dir, "-f")
+	after, _ := os.ReadFile(obj)
+	if string(after) == string(before) {
+		t.Fatalf("expected content change after force sync; still %q", string(after))
+	}
 }
 
 // TestCLISyncAllCreatesSymlinks verifies that running `duck sync` with no target
@@ -143,32 +169,6 @@ func TestCLISyncSingleTargetOnlyUpdatesRequested(t *testing.T) {
 	}
 	if !t1Info2.ModTime().After(t1Info1.ModTime()) {
 		t.Fatalf("t1 object modtime not updated under force sync")
-	}
-}
-
-// TestCLISyncForceRerender validates -f flag triggers re-render (modtime increase) while a plain
-// subsequent sync without -f skips rendering (modtime unchanged).
-func TestCLISyncForceRerender(t *testing.T) {
-	dir := t.TempDir()
-	writeSyncConfig(t, dir)
-	stubClone(t, "INITIAL1")
-	runSyncCLI(t, dir) // initial render
-	link := filepath.Join(dir, ".duck", "def", "default")
-	obj := getSymlinkTarget(t, link)
-	before, _ := os.ReadFile(obj)
-	// Plain sync (no -f) should NOT overwrite existing object; keep same content stub
-	runSyncCLI(t, dir)
-	mid, _ := os.ReadFile(obj)
-	if string(mid) != string(before) {
-		t.Fatalf("unexpected content change without -f: before=%q mid=%q", string(before), string(mid))
-	}
-	// Change stub content THEN force sync to induce update
-	stubClone(t, "UPDATED")
-	// Force sync should re-render (overwriting object file) even though key unchanged => content changes
-	runSyncCLI(t, dir, "-f")
-	after, _ := os.ReadFile(obj)
-	if string(after) == string(before) {
-		t.Fatalf("expected content change after force sync; still %q", string(after))
 	}
 }
 

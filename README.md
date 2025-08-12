@@ -28,7 +28,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 go install github.com/CyberDuck79/duckfile/cmd/duck@latest
 ```
 
-Go 1.21+ recommended.
+Go 1.24.0+ recommended.
 
 ## Quick start
 1) Create duck.yaml at the repo root:
