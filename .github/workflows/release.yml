@@ -33,14 +33,23 @@ jobs:
           echo "NEXT_VERSION=$(cat NEXT_VERSION)" >> $GITHUB_ENV
           echo "LAST_TAG=$(cat LAST_TAG)" >> $GITHUB_ENV
 
-      - name: Stop if no new version
-        if: steps.version.outputs.next_version == steps.version.outputs.last_tag
-        run: echo "No conventional commit requiring a version bump. Skipping release." && exit 0
+      - name: Decide if release needed
+        id: should_release
+        run: |
+          if [ "${{ steps.version.outputs.next_version }}" = "${{ steps.version.outputs.last_tag }}" ]; then
+            echo "No conventional commit requiring a version bump. Skipping release."
+            echo "release_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Release needed: ${{ steps.version.outputs.next_version }} (previous ${{ steps.version.outputs.last_tag }})"
+            echo "release_needed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Run tests
+        if: steps.should_release.outputs.release_needed == 'true'
         run: go test -race ./...
 
       - name: Tag
+        if: steps.should_release.outputs.release_needed == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -48,8 +57,9 @@ jobs:
           git push origin "$NEXT_VERSION"
 
       - name: Build binaries
+        if: steps.should_release.outputs.release_needed == 'true'
         env:
-          VERSION: ${{ env.NEXT_VERSION }}
+          VERSION: ${{ steps.version.outputs.next_version }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -71,31 +81,41 @@ jobs:
           ls -1 dist
 
       - name: Generate release notes
+        if: steps.should_release.outputs.release_needed == 'true'
         run: |
           echo "# Release $NEXT_VERSION" > RELEASE_NOTES.md
           echo >> RELEASE_NOTES.md
           echo "Changes since $LAST_TAG:" >> RELEASE_NOTES.md
           echo >> RELEASE_NOTES.md
           # Categorize commits
+          echo "## Breaking Changes" >> RELEASE_NOTES.md
+          { \
+            lines="$( (git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\\* .*!:"; \
+                      git log $LAST_TAG..HEAD --pretty=format:"%h||%s" --grep="BREAKING CHANGE" | awk -F'||' '{print "* "$2" ("$1")"}' ) | sort -u)"; \
+            if [ -z "$lines" ]; then echo "* None"; else echo "$lines"; fi; \
+          } >> RELEASE_NOTES.md
+          echo >> RELEASE_NOTES.md
             echo "## Features" >> RELEASE_NOTES.md
-          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* feat" || echo "* None" >> RELEASE_NOTES.md
+          { git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* feat" || echo "* None"; } >> RELEASE_NOTES.md
           echo >> RELEASE_NOTES.md
           echo "## Fixes" >> RELEASE_NOTES.md
-          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* fix" || echo "* None" >> RELEASE_NOTES.md
+          { git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -E "^\* fix" || echo "* None"; } >> RELEASE_NOTES.md
           echo >> RELEASE_NOTES.md
           echo "## Other" >> RELEASE_NOTES.md
-          git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -Ev "^\* (feat|fix)" || echo "* None" >> RELEASE_NOTES.md
+          { git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" | grep -Ev "^\* (feat|fix)" || echo "* None"; } >> RELEASE_NOTES.md
           echo >> RELEASE_NOTES.md
           echo "---" >> RELEASE_NOTES.md
           echo "Full commit log:" >> RELEASE_NOTES.md
           git log $LAST_TAG..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES.md
+          echo "---" >> RELEASE_NOTES.md
           echo "Generated on $(date -u)" >> RELEASE_NOTES.md
 
       - name: Create GitHub Release
+        if: steps.should_release.outputs.release_needed == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.NEXT_VERSION }}
-          name: ${{ env.NEXT_VERSION }}
+          tag_name: ${{ steps.version.outputs.next_version }}
+          name: ${{ steps.version.outputs.next_version }}
           body_path: RELEASE_NOTES.md
           files: dist/*
         env:
