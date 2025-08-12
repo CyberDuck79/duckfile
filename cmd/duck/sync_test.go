@@ -26,17 +26,18 @@ func runSyncCLI(t *testing.T, dir string, args ...string) {
 func writeSyncConfig(t *testing.T, dir string) {
 	t.Helper()
 	body := `version: 1
-default:
-  name: def
-  description: default target
-  binary: echo
-  fileFlag: -f
-  template:
-    repo: repoDef
-    ref: main
-    path: default.tpl
-  variables: {}
+default: def
+
 targets:
+  def:
+    description: default target
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: repoDef
+      ref: main
+      path: default.tpl
+    variables: {}
   t1:
     description: target one
     binary: echo
@@ -107,8 +108,8 @@ func TestCLISyncAllCreatesSymlinks(t *testing.T) {
 	stubClone(t, "CONTENT")
 	runSyncCLI(t, dir) // no args => all targets
 	// Expect symlinks under .duck/<target>/<basename>
-	for _, tgt := range []string{"default", "t1", "nobin"} {
-		base := map[string]string{"default": "default", "t1": "one", "nobin": "nobin"}[tgt]
+	for _, tgt := range []string{"def", "t1", "nobin"} {
+		base := map[string]string{"def": "default", "t1": "one", "nobin": "nobin"}[tgt]
 		link := filepath.Join(dir, ".duck", tgt, base)
 		if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
 			t.Fatalf("expected symlink for target %s at %s", tgt, link)
@@ -128,7 +129,7 @@ func TestCLISyncSingleTargetOnlyUpdatesRequested(t *testing.T) {
 		link := filepath.Join(dir, ".duck", target, base)
 		return getSymlinkTarget(t, link)
 	}
-	defObj := getObj("default", "default")
+	defObj := getObj("def", "default")
 	t1Obj := getObj("t1", "one")
 	defInfo1, _ := os.Stat(defObj)
 	t1Info1, _ := os.Stat(t1Obj)
@@ -152,7 +153,7 @@ func TestCLISyncForceRerender(t *testing.T) {
 	writeSyncConfig(t, dir)
 	stubClone(t, "INITIAL1")
 	runSyncCLI(t, dir) // initial render
-	link := filepath.Join(dir, ".duck", "default", "default")
+	link := filepath.Join(dir, ".duck", "def", "default")
 	obj := getSymlinkTarget(t, link)
 	before, _ := os.ReadFile(obj)
 	// Plain sync (no -f) should NOT overwrite existing object; keep same content stub

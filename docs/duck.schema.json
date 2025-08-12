@@ -2,10 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Duckfile configuration",
   "type": "object",
-  "required": ["version", "default"],
+  "required": ["version", "default", "targets"],
   "properties": {
     "version": { "type": "integer", "enum": [1] },
-    "default": { "$ref": "#/definitions/target" },
+    "default": { "type": "string" },
     "targets": {
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/target" }
@@ -27,7 +27,6 @@
       "type": "object",
       "required": ["template"],
       "properties": {
-        "name": { "type": "string" },
         "binary": { "type": "string" },
         "fileFlag": { "type": "string" },
         "template": { "$ref": "#/definitions/template" },

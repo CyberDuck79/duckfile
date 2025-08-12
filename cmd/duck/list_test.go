@@ -13,18 +13,19 @@ import (
 func writeListConfig(t *testing.T, dir string) {
 	t.Helper()
 	body := `version: 1
-default:
-  name: build
-  description: Build target
-  binary: make
-  fileFlag: -f
-  template:
-    repo: repoA
-    ref: main
-    path: Makefile.tpl
-  variables:
-    APP: myapp
+default: build
+
 targets:
+  build:
+    description: Build target
+    binary: make
+    fileFlag: -f
+    template:
+      repo: repoA
+      ref: main
+      path: Makefile.tpl
+    variables:
+      APP: myapp
   test:
     description: Test target
     binary: go
@@ -81,11 +82,17 @@ func TestListNoFlags(t *testing.T) {
 	dir := t.TempDir()
 	writeListConfig(t, dir)
 	out := runList(t, dir)
-	if !strings.Contains(out, "TARGET") || !strings.Contains(out, "default") || !strings.Contains(out, "test") {
-		t.Fatalf("missing targets header or names: \n%s", out)
+	if !strings.Contains(out, "TARGET") || !strings.Contains(out, "BINARY") || !strings.Contains(out, "DESCRIPTION") {
+		t.Fatalf("missing headers: \n%s", out)
 	}
-	if !strings.Contains(out, "Build target") || !strings.Contains(out, "Test target") {
-		t.Fatalf("missing descriptions: %s", out)
+	if !strings.Contains(out, "build") || !strings.Contains(out, "docs") || !strings.Contains(out, "test") {
+		t.Fatalf("missing names: \n%s", out)
+	}
+	if !strings.Contains(out, "build*") {
+		t.Fatalf("missing default symbol after default target name (*): \n%s", out)
+	}
+	if !strings.Contains(out, "make") || !strings.Contains(out, "-") || !strings.Contains(out, "go") {
+		t.Fatalf("missing binary or empty binary symbol (-): %s", out)
 	}
 	if strings.Contains(out, "repo:") || strings.Contains(out, "variables (") || strings.Contains(out, "exec:") {
 		t.Fatalf("unexpected remote/vars/exec sections without flags: %s", out)

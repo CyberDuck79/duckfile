@@ -31,6 +31,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# duck cache folder
 .duck
+# duck binary local build
+duck
 # test
 Makefile

@@ -16,15 +16,15 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `version` | Integer | ✔ | Specification version understood by this release. Start with `1`. |
-| `default` | Target object | ✔ | First (default) target. Runs when user executes `duck <args>`. |
-| `targets` | Mapping <string, Target> | ✖ | Additional named targets executed via `duck <target> <args>`. |
+| `default` | String | ✔ | Key of the default target inside `targets`. Runs when user executes `duck <args>`. |
+| `targets` | Mapping <string, Target> | ✔ | Declared targets executed via `duck <target> <args>`. Must contain the default key. |
 | `settings` | Settings object | ✖ | Global switches (cache dir, log level, allowlist…). |
 
 ## 3. Target object
 
 | Key | Type | Required | Description |
 |---|---|---|---|
-| `name` | String | ✔ (for `default`; auto-derived in `targets`) | Human readable label, used in logs. |
+| (removed) |  |  | The `name` field has been removed. The map key is the target identifier. |
 | `description` | String | ✖ | Optional longer explanation shown in `duck list`. |
 | `binary` | String | ✖ | Executable to launch (e.g. `make`, `task`, `helm`). Optional for sync/clean-only workflows. |
 | `fileFlag` | String | Cond. | Required when `binary` is set. CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
@@ -79,20 +79,21 @@ A symlink is created at `renderedPath` (or `.duck/<target>/<basename>`) pointing
 ```yaml
 version: 1
 
-default:
-  name: build
-  binary: make
-  fileFlag: -f
-  template:
-    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-    ref: main
-    path: Makefile.tpl
-  variables:
-    PROJECT: my-service
-    DATE: !cmd date +%Y-%m-%d
-  renderedPath: Makefile
+default: build
 
 targets:
+  build:
+    binary: make
+    fileFlag: -f
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: Makefile.tpl
+    variables:
+      PROJECT: my-service
+      DATE: !cmd date +%Y-%m-%d
+    renderedPath: Makefile
+
   test:
     binary: task
     fileFlag: --taskfile

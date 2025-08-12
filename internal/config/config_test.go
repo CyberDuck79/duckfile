@@ -81,24 +81,37 @@ func TestValidateTargetBinaryRules(t *testing.T) {
 	}
 }
 
-// TestDuckConfValidateConflicts ensures config validation detects a name clash
-// between the default target's Name and a named target key.
-func TestDuckConfValidateConflicts(t *testing.T) {
-	cfg := &DuckConf{Version: 1, Default: Target{Name: "build", Template: Template{Repo: "r", Path: "p"}}, Targets: map[string]Target{}}
+// New default semantics tests
+func TestDuckConfValidateValid(t *testing.T) {
+	cfg := &DuckConf{Version: 1, Default: "build", Targets: map[string]Target{"build": {Template: Template{Repo: "r", Path: "p"}}}}
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf("unexpected: %v", err)
-	}
-	cfg.Targets["build"] = Target{Template: Template{Repo: "r", Path: "p"}}
-	if err := cfg.Validate(); err == nil {
-		t.Fatalf("expected conflict error")
+		t.Fatalf("unexpected validate error: %v", err)
 	}
 }
 
-// TestDuckConfDisallowNamedDefault ensures a named target key "default" is rejected.
-func TestDuckConfDisallowNamedDefault(t *testing.T) {
-	cfg := &DuckConf{Version: 1, Default: Target{Template: Template{Repo: "r", Path: "p"}}, Targets: map[string]Target{"default": {Template: Template{Repo: "r", Path: "p"}}}}
-	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "not allowed as a named target") {
-		t.Fatalf("expected named default target error, got %v", err)
+func TestDuckConfValidateMissingDefaultKey(t *testing.T) {
+	cfg := &DuckConf{Version: 1, Default: "missing", Targets: map[string]Target{"one": {Template: Template{Repo: "r", Path: "p"}}, "two": {Template: Template{Repo: "r2", Path: "p2"}}}}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatalf("expected error for missing default reference")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "missing") || !strings.Contains(msg, "one") || !strings.Contains(msg, "two") {
+		t.Fatalf("expected error listing available targets, got %q", msg)
+	}
+}
+
+func TestDuckConfValidateEmptyTargets(t *testing.T) {
+	cfg := &DuckConf{Version: 1, Default: "build", Targets: map[string]Target{}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected error for empty targets map")
+	}
+}
+
+func TestDuckConfValidateEmptyDefault(t *testing.T) {
+	cfg := &DuckConf{Version: 1, Default: "", Targets: map[string]Target{"build": {Template: Template{Repo: "r", Path: "p"}}}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected error for empty default key")
 	}
 }
 

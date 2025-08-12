@@ -30,7 +30,11 @@ func init() {
 				if bin == "" {
 					bin = "-"
 				}
-				fmt.Printf("%-12s %-12s %-s\n", key, bin, t.Description)
+				label := key
+				if key == cfg.Default { // mark default
+					label = key + "*"
+				}
+				fmt.Printf("%-12s %-12s %-s\n", label, bin, t.Description)
 				if listShowRemote {
 					fmt.Printf("    repo: %s\n", t.Template.Repo)
 					ref := t.Template.Ref
@@ -69,16 +73,13 @@ func init() {
 					fmt.Printf("    exec: %s %s <rendered> %s\n", t.Binary, t.FileFlag, strings.Join(t.Args, " "))
 				}
 			}
-			printTarget("default", cfg.Default)
-			if len(cfg.Targets) > 0 {
-				keys := make([]string, 0, len(cfg.Targets))
-				for k := range cfg.Targets {
-					keys = append(keys, k)
-				}
-				sort.Strings(keys)
-				for _, k := range keys {
-					printTarget(k, cfg.Targets[k])
-				}
+			keys := make([]string, 0, len(cfg.Targets))
+			for k := range cfg.Targets {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				printTarget(k, cfg.Targets[k])
 			}
 			return nil
 		},

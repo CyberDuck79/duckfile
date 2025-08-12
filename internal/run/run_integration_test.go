@@ -32,7 +32,8 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	}
 	defer func() { cloneFunc = origClone }()
 
-	cfg := &config.DuckConf{Version: 1, Default: config.Target{Name: "build", Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}}}
+	defaultTarget := "build"
+	cfg := &config.DuckConf{Version: 1, Default: defaultTarget, Targets: map[string]config.Target{defaultTarget: {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}}}}
 
 	// override execCommand to no-op for binary execution
 	origExec := execCommand
@@ -48,7 +49,7 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	}
 	// verify rendered artifact exists via symlink target
 	base := "file"
-	linkPath := filepath.Join(".duck", "default", base)
+	linkPath := filepath.Join(".duck", defaultTarget, base)
 	fi, err := os.Lstat(linkPath)
 	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
 		t.Fatalf("expected symlink at %s", linkPath)

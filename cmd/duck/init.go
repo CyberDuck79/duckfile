@@ -26,15 +26,16 @@ func init() {
 
 func runInitWizard() error {
 	fmt.Println("Duckfile init wizard – press Enter to accept defaults or leave optional fields empty.")
-	first, _, err := runTargetWizard(true)
+	first, name, err := runTargetWizard(true)
 	if err != nil {
 		return err
 	}
-	cfg := &config.DuckConf{Version: 1, Default: first, Targets: map[string]config.Target{}}
+	// Build config with default key referencing first target
+	cfg := &config.DuckConf{Version: 1, Default: name, Targets: map[string]config.Target{name: first}}
 	if err := cfg.Save("duck.yaml"); err != nil {
 		return err
 	}
-	fmt.Println("Created duck.yaml with default target.")
+	fmt.Printf("Created duck.yaml with default target '%s'.\n", name)
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("Add another target? (y/N): ")
@@ -47,26 +48,22 @@ func runInitWizard() error {
 		if err != nil {
 			return err
 		}
-		nt, name, err := runTargetWizard(false)
+		nt, tname, err := runTargetWizard(false)
 		if err != nil {
 			return err
-		}
-		if name == "default" {
-			fmt.Println("Skipping – name 'default' is reserved.")
-			continue
 		}
 		if cfg2.Targets == nil {
 			cfg2.Targets = map[string]config.Target{}
 		}
-		if _, exists := cfg2.Targets[name]; exists {
+		if _, exists := cfg2.Targets[tname]; exists {
 			fmt.Println("Target already exists; skipping.")
 			continue
 		}
-		cfg2.Targets[name] = nt
+		cfg2.Targets[tname] = nt
 		if err := cfg2.Save("duck.yaml"); err != nil {
 			return err
 		}
-		fmt.Println("Added target", name)
+		fmt.Println("Added target", tname)
 	}
 	return nil
 }
