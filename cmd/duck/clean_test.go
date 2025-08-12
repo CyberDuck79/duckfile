@@ -74,9 +74,13 @@ func TestCLICleanSingleTarget(t *testing.T) {
 		t.Fatalf("expected t1 symlink before clean")
 	}
 	// clean default target only
-	rootCmd.SetArgs([]string{"clean", "default"})
+	rootCmd.SetArgs([]string{"clean", "build"})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("clean default: %v", err)
+	}
+	// check build dir
+	if _, err := os.Lstat(filepath.Join(dir, ".duck", "build")); err == nil {
+		t.Fatalf("build dir still exists")
 	}
 	// default symlink removed
 	if _, err := os.Lstat(filepath.Join(dir, ".duck", "build", "a")); err == nil {
@@ -107,8 +111,8 @@ func TestCLICleanAll(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".duck", "objects")); err == nil {
 		t.Fatalf("objects dir still exists")
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".duck", "default")); err == nil {
-		t.Fatalf("default dir still exists")
+	if _, err := os.Stat(filepath.Join(dir, ".duck", "build")); err == nil {
+		t.Fatalf("build dir still exists")
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".duck", "t1")); err == nil {
 		t.Fatalf("t1 dir still exists")
