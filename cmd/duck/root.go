@@ -33,7 +33,18 @@ USAGE:
   duck sync [target]     Sync templates to cache without executing
   duck list              List available targets with descriptions
   duck clean [target]    Clean cached objects and working directories
-  duck wizard            Interactive setup wizard
+  duck init              Interactive setup wizard
+  duck add               Interactive add target
+
+LOGGING:
+Log level can be configured via CLI flag, environment variable, or config file.
+Precedence: CLI flag > DUCK_LOG_LEVEL env var > settings.logLevel > default (info)
+
+CLI Flags:
+  --log-level=debug       # Set log level (error, warn, info, debug)
+
+Environment Variables:
+  DUCK_LOG_LEVEL="info"   # Set default log level
 
 SECURITY:
 Host allow/deny lists can be configured via environment variables or CLI flags
@@ -55,7 +66,8 @@ Examples:
   duck build                              # Execute 'build' target
   duck test -- --verbose                 # Execute 'test' target with args
   duck sync                               # Sync all templates to cache
-  duck --allowed-hosts=github.com build   # Only allow GitHub repositories`,
+  duck --allowed-hosts=github.com build   # Only allow GitHub repositories
+  duck --log-level=debug build            # Execute with debug logging`,
 	SilenceUsage:       true,
 	SilenceErrors:      true,
 	DisableFlagParsing: true, // Disable to handle custom parsing with -- separator
@@ -63,8 +75,9 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Manual parsing for target and passthrough args due to -- separator
 		var (
-			target  string
-			binArgs []string
+			target   string
+			binArgs  []string
+			logLevel string
 		)
 
 		// Find "--" separator
@@ -90,6 +103,11 @@ Examples:
 		for i := 0; i < len(duckArgs); i++ {
 			arg := duckArgs[i]
 			switch {
+			case strings.HasPrefix(arg, "--log-level="):
+				logLevel = arg[len("--log-level="):]
+			case arg == "--log-level" && i+1 < len(duckArgs):
+				logLevel = duckArgs[i+1]
+				i++ // skip next arg
 			case strings.HasPrefix(arg, "--allowed-hosts="):
 				hostStr := arg[len("--allowed-hosts="):]
 				allowedHosts = strings.Split(hostStr, ",")
@@ -116,24 +134,19 @@ Examples:
 			}
 		}
 
-		// 1. detect config file
-		configFiles := []string{"duck.yaml", "duck.yml", ".duck.yaml", ".duck.yml"}
-		var cfgFile string
-		for _, f := range configFiles {
-			if _, err := os.Stat(f); err == nil {
-				cfgFile = f
-				break
-			}
-		}
-		if cfgFile == "" {
-			return fmt.Errorf("no config file found (tried: %v)", configFiles)
-		}
-
-		// 2. load config
-		cfg, err := config.Load(cfgFile)
+		// 1. load config
+		cfg, err := loadConfig()
 		if err != nil {
 			return err
 		}
+
+		// 2. Resolve and set log level
+		logLevelStr := config.ResolveLogLevel(logLevel, cfg)
+		effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+		if err != nil {
+			return fmt.Errorf("invalid log level: %w", err)
+		}
+		run.SetLogLevel(effectiveLogLevel)
 
 		// 3. If no target or explicit legacy "default", translate to configured default key
 		if target == "" || target == "default" {
@@ -150,7 +163,8 @@ Examples:
 
 func init() {
 	rootCmd.Version = Version
-} // Execute is called by main.go
+}
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

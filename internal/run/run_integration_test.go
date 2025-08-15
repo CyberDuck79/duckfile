@@ -158,20 +158,23 @@ func TestChecksumValidation(t *testing.T) {
 	target.Template.Repo = "repo2"
 	cfg.Targets["build"] = target
 
-	// Capture stdout
-	oldStdout := os.Stdout
+	// Capture stderr (where logging goes)
+	oldStderr := os.Stderr
 	r, w, _ := os.Pipe()
-	os.Stdout = w
+	os.Stderr = w
+
+	// set the log level to warning
+	currentLogLevel = LogWarn
 
 	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration()); err != nil {
-		os.Stdout = oldStdout
+		os.Stderr = oldStderr
 		w.Close()
 		t.Fatalf("expected success with warning, got error: %v", err)
 	}
 	w.Close()
-	os.Stdout = oldStdout
+	os.Stderr = oldStderr
 	output, _ := io.ReadAll(r)
-	if !strings.Contains(string(output), "WARNING: template config (repo/ref/path/vars) changed but checksum is unchanged") {
+	if !strings.Contains(string(output), "[duck][warn] template config (repo/ref/path/vars) changed but checksum is unchanged") {
 		t.Fatalf("expected warning in output, got: %s", string(output))
 	}
 }

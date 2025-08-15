@@ -14,7 +14,7 @@
       "type": "object",
       "properties": {
         "cacheDir": { "type": "string" },
-        "logLevel": { "type": "string", "enum": ["debug","info","warn","error"] },
+        "logLevel": { "type": "string", "enum": ["error","warn","info","debug"] },
         "locked": { "type": "boolean" }
       },
       "additionalProperties": false

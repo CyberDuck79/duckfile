@@ -104,10 +104,10 @@ duck clean test
 
 # verbosity / debugging
 # show high-level steps (render, cache hits, pruning, exec line)
-duck -v
+duck --log-level=info
 # extremely detailed (includes variable values, paths, clone steps)
-duck --debug
-duck sync -vd   # combine flags on subcommands
+duck --log-level=debug
+duck sync --log-level=debug   # set log level for subcommands
 ```
 
 ## Security Features
@@ -144,6 +144,37 @@ duck sync
 - **Case insensitive**: `GitHub.COM` matches `github.com`
 
 See the [security schema](docs/security.schema.json) and [full specification](docs/spec.md) for complete details.
+
+## Logging Configuration
+
+Control verbosity with log levels, configured via CLI flag, environment variable, or config file.
+
+**Precedence** (highest to lowest):
+1. CLI flag: `--log-level=debug`
+2. Environment variable: `DUCK_LOG_LEVEL=info`
+3. Config file: `settings.logLevel: warn`
+4. Default: `info`
+
+**Log Levels** (from least to most verbose):
+- `error`: Only critical errors
+- `warn`: Warnings and errors 
+- `info`: High-level steps (default)
+- `debug`: Detailed debugging information
+
+**Examples:**
+```sh
+# Set via CLI flag (highest precedence)
+duck --log-level=debug build
+duck sync --log-level=warn
+
+# Set via environment variable
+export DUCK_LOG_LEVEL=debug
+duck build
+
+# Set via config file (duck.yaml)
+settings:
+  logLevel: info
+```
 
 ## How it works (MVP)
 - Resolve variables:

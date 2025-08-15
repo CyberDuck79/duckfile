@@ -127,11 +127,43 @@ type Target struct {
 	Args         ArgList             `yaml:"args,omitempty"`
 }
 
+// Settings represents the global configuration options
+type Settings struct {
+	CacheDir string `yaml:"cacheDir,omitempty"`
+	LogLevel string `yaml:"logLevel,omitempty"`
+	Locked   bool   `yaml:"locked,omitempty"`
+}
+
+// GetLogLevel returns the configured log level or default "info"
+func (s *Settings) GetLogLevel() string {
+	if s == nil || s.LogLevel == "" {
+		return "info"
+	}
+	return s.LogLevel
+}
+
+// GetCacheDir returns the configured cache dir or default ".duck/objects"
+func (s *Settings) GetCacheDir() string {
+	if s == nil || s.CacheDir == "" {
+		return ".duck/objects"
+	}
+	return s.CacheDir
+}
+
+// IsLocked returns whether locked mode is enabled
+func (s *Settings) IsLocked() bool {
+	if s == nil {
+		return false
+	}
+	return s.Locked
+}
+
 type DuckConf struct {
 	Version int `yaml:"version"`
 	// Default is the key of the target (in Targets) executed when the user omits a target.
-	Default string            `yaml:"default"`
-	Targets map[string]Target `yaml:"targets"`
+	Default  string            `yaml:"default"`
+	Targets  map[string]Target `yaml:"targets"`
+	Settings *Settings         `yaml:"settings,omitempty"`
 }
 
 // Save writes the configuration to disk as YAML.
@@ -206,6 +238,12 @@ func (c *DuckConf) Validate() error {
 	if len(c.Targets) == 0 {
 		return fmt.Errorf("no targets declared; 'targets' mapping must contain at least the default target '%s'", c.Default)
 	}
+
+	// Validate settings
+	if err := validateSettings(c.Settings); err != nil {
+		return err
+	}
+
 	// Validate each target
 	for name, t := range c.Targets {
 		if err := validateTarget(t, name); err != nil {
@@ -221,6 +259,28 @@ func (c *DuckConf) Validate() error {
 		sort.Strings(keys)
 		return fmt.Errorf("default target %q not found; available targets: %s", c.Default, strings.Join(keys, ", "))
 	}
+	return nil
+}
+
+func validateSettings(s *Settings) error {
+	if s == nil {
+		return nil
+	}
+
+	if s.LogLevel != "" {
+		validLevels := []string{"error", "warn", "info", "debug"}
+		valid := false
+		for _, level := range validLevels {
+			if s.LogLevel == level {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("invalid logLevel %q, must be one of: %s", s.LogLevel, strings.Join(validLevels, ", "))
+		}
+	}
+
 	return nil
 }
 
@@ -249,3 +309,26 @@ func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path
 
 // ValidateTarget exposes target validation rules for external callers.
 func ValidateTarget(t Target, name string) error { return validateTarget(t, name) }
+
+// ResolveLogLevel determines the effective log level from CLI flag, environment, and config
+// Precedence: CLI flag > Environment variable > Config file > Default ("info")
+// Returns the log level string, caller should parse it using run.ParseLogLevel
+func ResolveLogLevel(cliLogLevel string, cfg *DuckConf) string {
+	// 1. CLI flag has highest precedence
+	if cliLogLevel != "" {
+		return cliLogLevel
+	}
+
+	// 2. Environment variable
+	if envLevel := strings.TrimSpace(os.Getenv("DUCK_LOG_LEVEL")); envLevel != "" {
+		return envLevel
+	}
+
+	// 3. Config file
+	if cfg != nil && cfg.Settings != nil {
+		return cfg.Settings.GetLogLevel()
+	}
+
+	// 4. Default
+	return "info"
+}
