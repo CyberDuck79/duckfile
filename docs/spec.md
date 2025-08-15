@@ -18,7 +18,7 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `version` | Integer | ✔ | Specification version understood by this release. Start with `1`. |
 | `default` | String | ✔ | Key of the default target inside `targets`. Runs when user executes `duck <args>`. |
 | `targets` | Mapping <string, Target> | ✔ | Declared targets executed via `duck <target> <args>`. Must contain the default key. |
-| `settings` | Settings object | ✖ | Global switches (cache dir, log level, allowlist…). |
+| `settings` | Settings object | ✖ | Global switches (cache dir, log level, locked mode). **Security settings like host allow/deny lists are configured via environment variables or CLI flags, not in this file**. |
 
 ## 3. Target object
 
@@ -67,8 +67,60 @@ Notes:
 |---|---|---|---|
 | `cacheDir` | String | `.duck/objects` | Folder for cache objects. |
 | `logLevel` | Enum `debug` `info` `warn` `error` | `info` | Verbosity of CLI output. |
-| `allowedHosts` | String[] | *(no restriction)* | Allowlist of Git hostnames. |
 | `locked` | Boolean | `false` | If `true`, `duck` exits when template or variables changed instead of updating. |
+
+**Security Configuration (Host Allow/Deny Lists)**
+
+For supply-chain security, Duckfile supports restricting which Git hosts can be accessed for templates. **These restrictions must be configured outside of the `duck.yaml` file** to prevent attackers from modifying both the target repositories and the security policy in the same commit.
+
+**JSON Schema**: See [`docs/security.schema.json`](security.schema.json) for the complete security configuration schema.
+
+### Configuration Methods (in order of precedence):
+
+1. **CLI flags** (highest precedence):
+   ```bash
+   # Root command flags
+   duck build --allowed-hosts github.com,gitlab.internal.com
+   duck --denied-hosts malicious-host.com --strict-hosts build
+   
+   # Sync command flags
+   duck sync --allowed-hosts github.com --strict-hosts
+   duck sync target --denied-hosts bad-host.com
+   ```
+
+2. **Environment variables** (medium precedence):
+   ```bash
+   export DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"  
+   export DUCK_DENIED_HOSTS="malicious-host.com"
+   export DUCK_STRICT_MODE="true"  # Fail if no restrictions are configured
+   ```
+
+3. **System configuration files** (lowest precedence, future enhancement):
+   ```bash
+   # Future: /etc/duckfile/security.yaml or ~/.duckfile/security.yaml
+   # Not yet implemented but planned for enterprise environments
+   ```
+
+### Security Rules:
+- **Precedence**: CLI flags override environment variables
+- **Default behavior**: If no restrictions are configured, all hosts are allowed (backward compatibility)
+- **Deny takes precedence**: Denied hosts are blocked even if they're in the allow list
+- **Strict mode**: Use `--strict-hosts` or `DUCK_STRICT_MODE=true` to fail if no restrictions are configured
+- **Case insensitive**: Host matching is case-insensitive (`GitHub.COM` matches `github.com`)
+- **Exact matching**: Currently supports exact hostname matching (wildcards planned for future)
+- **Validation timing**: Host validation occurs before git operations, providing fast feedback
+
+### Security Best Practices:
+- Set restrictions in environment variables that require elevated privileges to modify
+- Use deny lists for known malicious hosts
+- Use allow lists in high-security environments to limit to trusted hosts only  
+- Enable strict mode in CI/CD environments to ensure policies are always applied
+- Regularly audit allowed hosts and remove unused entries
+
+### Supported Git URL Formats:
+- HTTPS: `https://github.com/user/repo.git`
+- SSH (SCP-style): `git@github.com:user/repo.git`  
+- SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
 
 ## 7. Deterministic cache (informative)
 Key = `SHA1(repo + ref + path + resolvedVariablesJSON)`.  

@@ -42,5 +42,3 @@ targets:
 
 settings:
   logLevel: debug
-  allowedHosts:
-    - github.com

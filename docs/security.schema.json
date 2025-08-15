@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Duckfile Security Configuration",
+  "description": "Security configuration for Duckfile host allow/deny lists. This configuration should be stored outside of duck.yaml to prevent supply-chain attacks where both targets and security policies could be modified together.",
+  "type": "object",
+  "properties": {
+    "allowedHosts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9.-]+$"
+      },
+      "description": "List of Git hostnames that are allowed for template repositories. If empty, no restrictions apply.",
+      "examples": [
+        ["github.com", "gitlab.internal.com"],
+        ["*.github.com", "bitbucket.org"]
+      ]
+    },
+    "deniedHosts": {
+      "type": "array", 
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9.-]+$"
+      },
+      "description": "List of Git hostnames that are explicitly denied. Takes precedence over allowedHosts.",
+      "examples": [
+        ["malicious-host.com", "suspicious-site.org"]
+      ]
+    },
+    "strictMode": {
+      "type": "boolean",
+      "description": "If true, fail if no host restrictions are configured. Useful for enforcing security policies.",
+      "default": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "allowedHosts": ["github.com", "gitlab.company.com"],
+      "deniedHosts": ["malicious-host.com"],
+      "strictMode": true
+    },
+    {
+      "allowedHosts": ["github.com"],
+      "strictMode": false
+    }
+  ]
+}

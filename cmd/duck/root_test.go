@@ -37,7 +37,7 @@ targets:
 	// stub runExec
 	called := false
 	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string) error {
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig) error {
 		if target != "build" {
 			t.Fatalf("expected build got %s", target)
 		}
@@ -138,7 +138,7 @@ targets:
 `)
 	captured := []string{}
 	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string) error {
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig) error {
 		captured = append(captured, args...)
 		return nil
 	}

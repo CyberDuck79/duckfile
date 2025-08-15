@@ -15,7 +15,6 @@
       "properties": {
         "cacheDir": { "type": "string" },
         "logLevel": { "type": "string", "enum": ["debug","info","warn","error"] },
-        "allowedHosts": { "type": "array", "items": { "type": "string" } },
         "locked": { "type": "boolean" }
       },
       "additionalProperties": false
