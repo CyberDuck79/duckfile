@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
+	"github.com/CyberDuck79/duckfile/internal/run"
 	"github.com/spf13/cobra"
 )
 
@@ -14,16 +15,26 @@ func init() {
 		listShowRemote bool
 		listShowVars   bool
 		listShowExec   bool
+		listLogLevel   string
 	)
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List targets defined in duck.yaml",
-		Long:  "List targets (default + named) from the configuration. Shows name and description by default. Use flags to include remote template, variables, and execution info.",
+		Long:  "List targets (default + named) from the configuration. Shows name and description by default. Use flags to include remote template, variables, and execution info.\n\nLogging: Use --log-level to control verbosity (error, warn, info, debug).",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
+
+			// Resolve and set log level
+			logLevelStr := config.ResolveLogLevel(listLogLevel, cfg)
+			effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+			if err != nil {
+				return fmt.Errorf("invalid log level: %w", err)
+			}
+			run.SetLogLevel(effectiveLogLevel)
+
 			fmt.Printf("%-12s %-12s %-s\n", "TARGET", "BINARY", "DESCRIPTION")
 			printTarget := func(key string, t config.Target) {
 				bin := t.Binary
@@ -87,5 +98,7 @@ func init() {
 	listCmd.Flags().BoolVarP(&listShowRemote, "remote", "r", false, "Show remote template configuration (repo/ref/path/delims)")
 	listCmd.Flags().BoolVarP(&listShowVars, "vars", "v", false, "Show variable names and their kinds")
 	listCmd.Flags().BoolVarP(&listShowExec, "exec", "e", false, "Show execution line (binary + file flag + args)")
+	listCmd.Flags().StringVar(&listLogLevel, "log-level", "", "Set log level (error, warn, info, debug)")
+
 	rootCmd.AddCommand(listCmd)
 }

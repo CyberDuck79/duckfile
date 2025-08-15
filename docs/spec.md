@@ -66,7 +66,7 @@ Notes:
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `cacheDir` | String | `.duck/objects` | Folder for cache objects. |
-| `logLevel` | Enum `debug` `info` `warn` `error` | `info` | Verbosity of CLI output. |
+| `logLevel` | Enum `error` `warn` `info` `debug` | `info` | Verbosity of CLI output. Can be overridden by `--log-level` CLI flag or `DUCK_LOG_LEVEL` environment variable. Precedence: CLI flag > env var > config > default. |
 | `locked` | Boolean | `false` | If `true`, `duck` exits when template or variables changed instead of updating. |
 
 **Security Configuration (Host Allow/Deny Lists)**

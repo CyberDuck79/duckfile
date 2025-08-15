@@ -58,7 +58,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 		return err
 	}
 
-	logVerbose("exec target %q", key)
+	logInfo("exec target %q", key)
 
 	// Validate repository host access before proceeding
 	if err := config.ValidateRepoAccess(t.Template.Repo, securityCfg); err != nil {
@@ -75,7 +75,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	if err != nil {
 		return err
 	}
-	logVerbose("resolved variables: %d", len(vars))
+	logInfo("resolved variables: %d", len(vars))
 	if currentLogLevel == LogDebug {
 		for k, v := range vars {
 			logDebug("var %s=%v", k, v)
@@ -92,7 +92,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	objDir := filepath.Join(".duck", "objects", cacheKey)
 	objFile := filepath.Join(objDir, base)
 	// Ensure objects dir exists only if we will write into it later.
-	logVerbose("cache key %.12s", cacheKey)
+	logInfo("cache key %.12s", cacheKey)
 	logDebug("object dir %s", objDir)
 
 	// 3. Prepare per-target cache dir and compute symlink path
@@ -108,7 +108,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 
 	// 4. If object is missing, fetch template repo and render it; otherwise, skip cloning
 	if _, statErr := os.Stat(objFile); statErr != nil {
-		logVerbose("cache miss; rendering template")
+		logInfo("cache miss; rendering template")
 		logDebug("clone %s@%s", t.Template.Repo, t.Template.Ref)
 		// Fetch template repository at the requested ref
 		repoDir, err := cloneFunc(t.Template.Repo, t.Template.Ref, cacheDir)
@@ -124,7 +124,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 				if oldChecksum, err := os.ReadFile(sumFile); err == nil {
 					logDebug("found old checksum %s", oldChecksum)
 					if string(oldChecksum) == t.Template.Checksum {
-						fmt.Println("WARNING: template config (repo/ref/path/vars) changed but checksum is unchanged")
+						logWarn("template config (repo/ref/path/vars) changed but checksum is unchanged")
 					}
 				}
 			}
@@ -146,7 +146,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 		if err := renderTemplate(src, objFile, t, vars); err != nil {
 			return err
 		}
-		logVerbose("rendered %s -> %s", t.Template.Path, objFile)
+		logInfo("rendered %s -> %s", t.Template.Path, objFile)
 	}
 	if _, err := os.Stat(objFile); err == nil {
 		logDebug("object present %s", objFile)
@@ -173,11 +173,11 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	if err := ensureSymlink(objFile, linkPath); err != nil {
 		return err
 	}
-	logVerbose("symlink %s -> %s", linkPath, objFile)
+	logInfo("symlink %s -> %s", linkPath, objFile)
 
 	// 7. If the key changed, remove the old object directory to free cache
 	if oldKey != "" && oldKey != cacheKey {
-		logVerbose("prune old key %s", oldKey)
+		logInfo("prune old key %s", oldKey)
 		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
 	}
 
@@ -187,7 +187,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	args = append(args, passthrough...)
 	cmd := execCommand(t.Binary, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
-	logVerbose("exec: %s %s", t.Binary, strings.Join(args, " "))
+	logInfo("exec: %s %s", t.Binary, strings.Join(args, " "))
 	return cmd.Run()
 }
 
@@ -357,7 +357,7 @@ func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *conf
 }
 
 func syncOne(targetName string, t config.Target, force bool) error {
-	logVerbose("sync %q", targetName)
+	logInfo("sync %q", targetName)
 	// Resolve variables and compute key/paths
 	vars, err := resolveVariables(t.Variables)
 	if err != nil {
@@ -389,9 +389,9 @@ func syncOne(targetName string, t config.Target, force bool) error {
 	}
 	if needRender {
 		if force {
-			logVerbose("force re-render")
+			logInfo("force re-render")
 		} else {
-			logVerbose("cache miss; rendering")
+			logInfo("cache miss; rendering")
 		}
 		// Always fetch/clone then render
 		logDebug("clone %s@%s", t.Template.Repo, t.Template.Ref)
@@ -406,7 +406,7 @@ func syncOne(targetName string, t config.Target, force bool) error {
 		if err := renderTemplate(src, objFile, t, vars); err != nil {
 			return err
 		}
-		logVerbose("rendered %s -> %s", t.Template.Path, objFile)
+		logInfo("rendered %s -> %s", t.Template.Path, objFile)
 	}
 
 	// Detect previous key via symlink before updating
@@ -415,7 +415,7 @@ func syncOne(targetName string, t config.Target, force bool) error {
 		return err
 	}
 	if oldKey != "" && oldKey != key {
-		logVerbose("prune old key %s", oldKey)
+		logInfo("prune old key %s", oldKey)
 		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
 	}
 	return nil
@@ -426,7 +426,7 @@ func syncOne(targetName string, t config.Target, force bool) error {
 // and its currently referenced object.
 func Clean(cfg *config.DuckConf, targetName string) error {
 	if strings.TrimSpace(targetName) == "" { // clean all
-		logVerbose("clean all")
+		logInfo("clean all")
 		for name, t := range cfg.Targets {
 			_ = cleanOne(name, t)
 		}
@@ -437,7 +437,7 @@ func Clean(cfg *config.DuckConf, targetName string) error {
 	if err != nil {
 		return err
 	}
-	logVerbose("clean %q", key)
+	logInfo("clean %q", key)
 	return cleanOne(key, t)
 }
 
@@ -456,7 +456,7 @@ func cleanOne(targetName string, t config.Target) error {
 			_ = os.RemoveAll(filepath.Join(".duck", "objects", key))
 		}
 		_ = os.Remove(linkPath)
-		logVerbose("removed %s", linkPath)
+		logInfo("removed %s", linkPath)
 	}
 	// Remove per-target cache dir (cloned repo path etc.)
 	logDebug("remove cache dir %s", cacheDir)
