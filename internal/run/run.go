@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -94,6 +95,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
+
 	linkPath := t.RenderedPath
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base) // per-target path
@@ -109,6 +111,30 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 			return err
 		}
 		src := filepath.Join(repoDir, t.Template.Path)
+		// If checksum is configured, validate it against the template file
+		if t.Template.Checksum != "" {
+			sumFile := filepath.Join(cacheDir, "checksum.sha256")
+			// check if there is a checksum file
+			if _, err := os.Stat(sumFile); err == nil {
+				if oldChecksum, err := os.ReadFile(sumFile); err == nil {
+					logDebug("found old checksum %s", oldChecksum)
+					if string(oldChecksum) == t.Template.Checksum {
+						fmt.Println("WARNING: template config (repo/ref/path/vars) changed but checksum is unchanged")
+					}
+				}
+			}
+			b, err := os.ReadFile(src)
+			if err != nil {
+				return fmt.Errorf("failed to read template for checksum validation: %w", err)
+			}
+			sum := fmt.Sprintf("%x", sha256.Sum256(b))
+			if sum != t.Template.Checksum {
+				return fmt.Errorf("template checksum mismatch: expected %s, got %s", t.Template.Checksum, sum)
+			}
+			if err := os.WriteFile(sumFile, []byte(t.Template.Checksum), 0o644); err != nil {
+				return fmt.Errorf("failed to write checksum file: %w", err)
+			}
+		}
 		if err := os.MkdirAll(objDir, 0o755); err != nil {
 			return err
 		}
@@ -125,12 +151,10 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	oldKey := ""
 	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
 		if dest, err := os.Readlink(linkPath); err == nil {
-			// Resolve relative symlink to absolute
 			if !filepath.IsAbs(dest) {
 				dest = filepath.Join(filepath.Dir(linkPath), dest)
 			}
 			if abs, err := filepath.Abs(dest); err == nil {
-				// abs is .../.duck/objects/<key>/<base> ideally
 				objDirPrev := filepath.Dir(abs)
 				objectsDir := filepath.Base(filepath.Dir(objDirPrev))
 				if objectsDir == "objects" {

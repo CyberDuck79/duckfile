@@ -2,9 +2,13 @@
 package run
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
@@ -67,5 +71,97 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	}
 	if _, err := os.Lstat(linkPath); err == nil {
 		t.Fatalf("expected link removed")
+	}
+}
+
+// TestChecksumValidation verifies checksum validation and warning logic.
+func TestChecksumValidation(t *testing.T) {
+	tmp := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmp)
+	defer os.Chdir(oldWd)
+
+	// Write template file
+	os.MkdirAll("repo", 0o755)
+	content := []byte("hello world")
+	checksum := fmt.Sprintf("%x", sha256.Sum256(content))
+
+	// Initial config
+	target := config.Target{
+		Binary:   "echo",
+		FileFlag: "-f",
+		Template: config.Template{
+			Repo:     "repo",
+			Path:     "file.tpl",
+			Checksum: checksum,
+		},
+	}
+	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": target}}
+
+	// Override cloneFunc
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		dst := filepath.Join(cacheDir, "repo")
+		os.MkdirAll(dst, 0o755)
+		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
+		return dst, nil
+	}
+	execCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("true")
+	}
+
+	// Should succeed (checksum matches)
+	if err := Exec(cfg, "build", nil); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	// Clean and ensure removal
+	if err := Clean(cfg, "build"); err != nil {
+		t.Fatalf("clean error: %v", err)
+	}
+
+	// Change template file to break checksum
+	tampered := []byte("tampered")
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		dst := filepath.Join(cacheDir, "repo")
+		os.MkdirAll(dst, 0o755)
+		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
+		return dst, nil
+	}
+	if err := Exec(cfg, "build", nil); err == nil {
+		t.Fatalf("expected checksum error, got nil")
+	}
+	// Restore cloneFunc for next test
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		dst := filepath.Join(cacheDir, "repo")
+		os.MkdirAll(dst, 0o755)
+		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
+		return dst, nil
+	}
+
+	// recompute checksum
+	if err := Exec(cfg, "build", nil); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	// Restore file, change repo (should warn about stale checksum)
+	target = cfg.Targets["build"]
+	target.Template.Repo = "repo2"
+	cfg.Targets["build"] = target
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	if err := Exec(cfg, "build", nil); err != nil {
+		os.Stdout = oldStdout
+		w.Close()
+		t.Fatalf("expected success with warning, got error: %v", err)
+	}
+	w.Close()
+	os.Stdout = oldStdout
+	output, _ := io.ReadAll(r)
+	if !strings.Contains(string(output), "WARNING: template config (repo/ref/path/vars) changed but checksum is unchanged") {
+		t.Fatalf("expected warning in output, got: %s", string(output))
 	}
 }
