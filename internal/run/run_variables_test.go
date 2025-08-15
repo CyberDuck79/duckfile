@@ -11,6 +11,16 @@ import (
 	"github.com/CyberDuck79/duckfile/internal/config"
 )
 
+// defaultSecurityConfig creates a permissive security config for testing
+func defaultSecurityConfigVars() *config.SecurityConfig {
+	return &config.SecurityConfig{
+		AllowedHosts: nil, // Allow all hosts in tests
+		DeniedHosts:  nil,
+		StrictMode:   false,
+		Source:       "test",
+	}
+}
+
 // TestResolveVariables exercises literal, env, file, and command variables to
 // confirm each VarKind resolves to the expected runtime value.
 func TestResolveVariables(t *testing.T) {
@@ -81,7 +91,7 @@ func TestAllowMissingVsStrict(t *testing.T) {
 	defer func() { cloneFunc = origClone }()
 	// strict -> error
 	strictCfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "f.tpl"}, Variables: map[string]config.VarValue{"VAR1": config.NewLiteralVar("one")}}}}
-	if err := Sync(strictCfg, "default", false); err == nil {
+	if err := Sync(strictCfg, "default", false, defaultSecurityConfigVars()); err == nil {
 		t.Fatalf("expected error for missing variable in strict mode")
 	}
 	// allowMissing -> empty value
@@ -90,7 +100,7 @@ func TestAllowMissingVsStrict(t *testing.T) {
 	origExec := execCommand
 	execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command("true") }
 	defer func() { execCommand = origExec }()
-	if err := Sync(allowCfg, "build", false); err != nil {
+	if err := Sync(allowCfg, "build", false, defaultSecurityConfigVars()); err != nil {
 		t.Fatalf("allowMissing sync err: %v", err)
 	}
 	link := filepath.Join(".duck", "build", "f")

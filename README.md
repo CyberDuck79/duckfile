@@ -21,6 +21,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
 - Checksum validation of remote templates
+- **Host allow/deny lists for supply-chain security**
 - Simple CLI that forwards args to your tool (make, task, helm, …)
 - Render-only workflow via `duck sync` when you don't want `duck` to execute your tools
 
@@ -108,6 +109,41 @@ duck -v
 duck --debug
 duck sync -vd   # combine flags on subcommands
 ```
+
+## Security Features
+
+Duckfile includes supply-chain security features to prevent malicious template injection:
+
+### Host Allow/Deny Lists
+Control which Git hosts can be accessed for templates. Security configurations are kept **separate from `duck.yaml`** to prevent attackers from modifying both targets and security policies together.
+
+**Configuration Precedence** (highest to lowest):
+1. **CLI Flags** - Override everything else
+2. **Environment Variables** - System-level defaults  
+3. **No Restrictions** - Allow all hosts (default)
+
+```bash
+# CLI flags (highest precedence)
+duck build --allowed-hosts github.com,gitlab.internal.com
+duck sync --denied-hosts malicious-host.com --strict-hosts
+
+# Environment variables (system-level)
+export DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"
+export DUCK_DENIED_HOSTS="malicious-host.com" 
+export DUCK_STRICT_MODE="true"  # Fail if no restrictions configured
+
+# Then run any duck command
+duck build
+duck sync
+```
+
+**Security Rules:**
+- **Deny beats allow**: Denied hosts are blocked even if in allow list
+- **Strict mode**: Fail if no restrictions are configured  
+- **Fast validation**: Host checking happens before git operations
+- **Case insensitive**: `GitHub.COM` matches `github.com`
+
+See the [security schema](docs/security.schema.json) and [full specification](docs/spec.md) for complete details.
 
 ## How it works (MVP)
 - Resolve variables:

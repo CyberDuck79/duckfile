@@ -10,22 +10,58 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// test seam
-var runExec = run.Exec
+// test seam - updated to include security config
+var runExec = func(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
+	return run.Exec(cfg, targetName, passthrough, securityCfg)
+}
 
 // Version is injected at build time with: go build -ldflags "-X main.Version=<version>"
 // Defaults to "dev" when not set.
 var Version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:                "duck [target] -- [target_args...]",
-	Short:              "Duckfiles – remote-templating wrapper",
+	Use:   "duck [target] -- [target_args...]",
+	Short: "Duckfiles – remote-templating wrapper",
+	Long: `Duckfiles – remote-templating wrapper
+
+Duck fetches, renders, and executes remote Git templates with deterministic caching.
+Templates are rendered with Go's text/template engine and Sprig functions.
+
+USAGE:
+  duck [target]          Execute the specified target (or default if not provided)
+  duck [target] -- args  Execute target and pass args to the underlying binary
+  duck sync [target]     Sync templates to cache without executing
+  duck list              List available targets with descriptions
+  duck clean [target]    Clean cached objects and working directories
+  duck wizard            Interactive setup wizard
+
+SECURITY:
+Host allow/deny lists can be configured via environment variables or CLI flags
+to prevent supply-chain attacks. These restrictions are kept separate from
+duck.yaml to prevent attackers from modifying both targets and security policies.
+
+Environment Variables:
+  DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"  # Comma-separated allowed hosts
+  DUCK_DENIED_HOSTS="malicious-host.com"               # Comma-separated denied hosts  
+  DUCK_STRICT_MODE="true"                              # Fail if no restrictions configured
+
+CLI Flags (override environment):
+  --allowed-hosts=host1,host2  # Override allowed hosts
+  --denied-hosts=host1,host2   # Override denied hosts
+  --strict-hosts               # Enable strict mode
+
+Examples:
+  duck                                    # Execute default target
+  duck build                              # Execute 'build' target
+  duck test -- --verbose                 # Execute 'test' target with args
+  duck sync                               # Sync all templates to cache
+  duck --allowed-hosts=github.com build   # Only allow GitHub repositories`,
 	SilenceUsage:       true,
 	SilenceErrors:      true,
-	DisableFlagParsing: true, // manual parsing
+	DisableFlagParsing: true, // Disable to handle custom parsing with -- separator
 	Args:               cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Manual flag parsing
+		// Manual parsing for target and passthrough args due to -- separator
 		var (
 			target  string
 			binArgs []string
@@ -46,28 +82,38 @@ var rootCmd = &cobra.Command{
 			binArgs = args[sepIdx+1:]
 		}
 
-		var wantVerbose, wantDebug bool
+		// Parse our custom flags from duckArgs
+		allowedHosts := []string{}
+		deniedHosts := []string{}
+		strictMode := false
+
 		for i := 0; i < len(duckArgs); i++ {
-			switch duckArgs[i] {
-			case "-h", "--help":
+			arg := duckArgs[i]
+			switch {
+			case strings.HasPrefix(arg, "--allowed-hosts="):
+				hostStr := arg[len("--allowed-hosts="):]
+				allowedHosts = strings.Split(hostStr, ",")
+			case arg == "--allowed-hosts" && i+1 < len(duckArgs):
+				hostStr := duckArgs[i+1]
+				allowedHosts = strings.Split(hostStr, ",")
+				i++ // skip next arg
+			case strings.HasPrefix(arg, "--denied-hosts="):
+				hostStr := arg[len("--denied-hosts="):]
+				deniedHosts = strings.Split(hostStr, ",")
+			case arg == "--denied-hosts" && i+1 < len(duckArgs):
+				hostStr := duckArgs[i+1]
+				deniedHosts = strings.Split(hostStr, ",")
+				i++ // skip next arg
+			case arg == "--strict-hosts":
+				strictMode = true
+			case arg == "-h" || arg == "--help":
 				return cmd.Help()
-			case "-v", "--verbose":
-				wantVerbose = true
-			case "-d", "--debug":
-				wantDebug = true
-			case "-vd", "-dv":
-				wantVerbose = true
-				wantDebug = true
-			default:
-				if target == "" && !strings.HasPrefix(duckArgs[i], "-") {
-					target = duckArgs[i]
+			case !strings.HasPrefix(arg, "-"):
+				// This is the target name
+				if target == "" {
+					target = arg
 				}
 			}
-		}
-		if wantDebug {
-			run.SetLogLevel(run.LogDebug)
-		} else if wantVerbose {
-			run.SetLogLevel(run.LogVerbose)
 		}
 
 		// 1. detect config file
@@ -94,14 +140,17 @@ var rootCmd = &cobra.Command{
 			target = cfg.Default
 		}
 
-		// 4. execute
-		return runExec(cfg, target, binArgs)
+		// 4. Build security configuration (manual CLI parsing override or environment)
+		securityCfg := config.BuildSecurityConfig(allowedHosts, deniedHosts, strictMode)
+
+		// 5. execute with security validation
+		return runExec(cfg, target, binArgs, securityCfg)
 	},
 }
 
-func init() { rootCmd.Version = Version }
-
-// Execute is called by main.go
+func init() {
+	rootCmd.Version = Version
+} // Execute is called by main.go
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

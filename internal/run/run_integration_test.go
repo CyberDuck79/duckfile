@@ -14,6 +14,16 @@ import (
 	"github.com/CyberDuck79/duckfile/internal/config"
 )
 
+// defaultSecurityConfig creates a permissive security config for testing
+func defaultSecurityConfigIntegration() *config.SecurityConfig {
+	return &config.SecurityConfig{
+		AllowedHosts: nil, // Allow all hosts in tests
+		DeniedHosts:  nil,
+		StrictMode:   false,
+		Source:       "test",
+	}
+}
+
 // TestSyncAndCleanWithStubClone simulates clone + render cycle using a stub cloneFunc.
 func TestSyncAndCleanWithStubClone(t *testing.T) {
 	tmp := t.TempDir()
@@ -49,7 +59,7 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	defer func() { execCommand = origExec }()
 
 	// Run sync (should render)
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync error: %v", err)
 	}
 	// verify rendered artifact exists via symlink target
@@ -61,7 +71,7 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	}
 
 	// Run Exec (should reuse cache)
-	if err := Exec(cfg, "default", nil); err != nil {
+	if err := Exec(cfg, "default", nil, defaultSecurityConfigIntegration()); err != nil {
 		t.Fatalf("exec error: %v", err)
 	}
 
@@ -110,7 +120,7 @@ func TestChecksumValidation(t *testing.T) {
 	}
 
 	// Should succeed (checksum matches)
-	if err := Exec(cfg, "build", nil); err != nil {
+	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration()); err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
 
@@ -127,7 +137,7 @@ func TestChecksumValidation(t *testing.T) {
 		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
 		return dst, nil
 	}
-	if err := Exec(cfg, "build", nil); err == nil {
+	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration()); err == nil {
 		t.Fatalf("expected checksum error, got nil")
 	}
 	// Restore cloneFunc for next test
@@ -139,7 +149,7 @@ func TestChecksumValidation(t *testing.T) {
 	}
 
 	// recompute checksum
-	if err := Exec(cfg, "build", nil); err != nil {
+	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration()); err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
 
@@ -153,7 +163,7 @@ func TestChecksumValidation(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	if err := Exec(cfg, "build", nil); err != nil {
+	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration()); err != nil {
 		os.Stdout = oldStdout
 		w.Close()
 		t.Fatalf("expected success with warning, got error: %v", err)

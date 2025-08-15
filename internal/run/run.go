@@ -51,7 +51,7 @@ func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Targe
 }
 
 // Exec renders and executes one target.
-func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
+func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
 	// Determine the effective target key
 	key, t, err := searchTarget(cfg, targetName)
 	if err != nil {
@@ -59,6 +59,11 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string) error {
 	}
 
 	logVerbose("exec target %q", key)
+
+	// Validate repository host access before proceeding
+	if err := config.ValidateRepoAccess(t.Template.Repo, securityCfg); err != nil {
+		return fmt.Errorf("repository access denied: %w", err)
+	}
 
 	// Ensure executable configuration is present
 	if strings.TrimSpace(t.Binary) == "" {
@@ -334,12 +339,16 @@ func ensureSymlink(target, link string) error {
 // Sync renders templates into the cache without executing the target.
 // If targetName is empty, all targets (default + named) are synced.
 // If force is true, re-render regardless of existing cache.
-func Sync(cfg *config.DuckConf, targetName string, force bool) error {
+func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *config.SecurityConfig) error {
 	targets, err := collectTargets(cfg, targetName)
 	if err != nil {
 		return err
 	}
 	for name, t := range targets {
+		// Validate repository host access before syncing
+		if err := config.ValidateRepoAccess(t.Template.Repo, securityCfg); err != nil {
+			return fmt.Errorf("repository access denied for target %q: %w", name, err)
+		}
 		if err := syncOne(name, t, force); err != nil {
 			return err
 		}

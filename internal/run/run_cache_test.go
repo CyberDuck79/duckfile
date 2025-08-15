@@ -12,6 +12,16 @@ import (
 	"github.com/CyberDuck79/duckfile/internal/config"
 )
 
+// defaultSecurityConfig creates a permissive security config for testing
+func defaultSecurityConfig() *config.SecurityConfig {
+	return &config.SecurityConfig{
+		AllowedHosts: nil, // Allow all hosts in tests
+		DeniedHosts:  nil,
+		StrictMode:   false,
+		Source:       "test",
+	}
+}
+
 // helper to list object key dirs
 func listObjectKeys(t *testing.T) []string {
 	t.Helper()
@@ -51,7 +61,7 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 	}
 	defer func() { cloneFunc = origClone }()
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}}}}
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync1: %v", err)
 	}
 	keys1 := listObjectKeys(t)
@@ -60,7 +70,7 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 	}
 	// change variable => new key
 	cfg.Targets[cfg.Default].Variables["NAME"] = config.NewLiteralVar("two")
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync2: %v", err)
 	}
 	keys2 := listObjectKeys(t)
@@ -92,12 +102,12 @@ func TestSyncIdempotentWithoutForce(t *testing.T) {
 	}
 	defer func() { cloneFunc = origClone }()
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync1: %v", err)
 	}
 	// modify source template, but don't force
 	os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("v2 {{ .NAME }}"), 0o644)
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync2: %v", err)
 	}
 	// object content should still be v1 because key unchanged and not forced
@@ -132,7 +142,7 @@ func TestSyncForceReRendersSameKey(t *testing.T) {
 	}
 	defer func() { cloneFunc = origClone }()
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync1: %v", err)
 	}
 	link := filepath.Join(".duck", "build", "file")
@@ -145,7 +155,7 @@ func TestSyncForceReRendersSameKey(t *testing.T) {
 	os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("force2 {{ .NAME }}"), 0o644)
 	// small sleep to ensure mtime difference if needed
 	time.Sleep(10 * time.Millisecond)
-	if err := Sync(cfg, "", true); err != nil {
+	if err := Sync(cfg, "", true, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync force: %v", err)
 	}
 	after, _ := os.ReadFile(target)
@@ -158,7 +168,7 @@ func TestSyncForceReRendersSameKey(t *testing.T) {
 // a helpful guidance error instead of proceeding.
 func TestExecMissingBinaryError(t *testing.T) {
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Template: config.Template{Repo: "r", Path: "file.tpl"}}}}
-	if err := Exec(cfg, "default", nil); err == nil || !strings.Contains(err.Error(), "no binary configured") {
+	if err := Exec(cfg, "default", nil, defaultSecurityConfig()); err == nil || !strings.Contains(err.Error(), "no binary configured") {
 		t.Fatalf("expected missing binary error, got %v", err)
 	}
 }
@@ -187,7 +197,7 @@ func TestExecUnderlyingBinaryFailure(t *testing.T) {
 	execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command("sh", "-c", "exit 5") }
 	defer func() { execCommand = origExec }()
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "dummy", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
-	if err := Exec(cfg, "default", nil); err == nil {
+	if err := Exec(cfg, "default", nil, defaultSecurityConfig()); err == nil {
 		t.Fatalf("expected failure from underlying binary")
 	}
 }
@@ -212,7 +222,7 @@ func TestRenderMissingVariableStrict(t *testing.T) {
 	}
 	defer func() { cloneFunc = origClone }()
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}}}}
-	err := Sync(cfg, "default", false)
+	err := Sync(cfg, "default", false, defaultSecurityConfig())
 	if err == nil {
 		t.Fatalf("expected render error for missing var")
 	}
@@ -244,7 +254,7 @@ func TestEnsureSymlinkReplacesFile(t *testing.T) {
 	os.MkdirAll(filepath.Join(".duck", "build"), 0o755)
 	os.WriteFile(filepath.Join(".duck", "build", "file"), []byte("old"), 0o644)
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
-	if err := Sync(cfg, "build", false); err != nil {
+	if err := Sync(cfg, "build", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	link := filepath.Join(".duck", "build", "file")
@@ -281,7 +291,7 @@ func TestBrokenSymlinkUpdated(t *testing.T) {
 	link := filepath.Join(".duck", "build", "file")
 	os.Symlink("../objects/missing-key/file", link)
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
-	if err := Sync(cfg, "build", false); err != nil {
+	if err := Sync(cfg, "build", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync err: %v", err)
 	}
 	// link should now point to an existing object file
@@ -318,7 +328,7 @@ func TestCleanRemovesOnlyTargetArtifacts(t *testing.T) {
 	defer func() { cloneFunc = origClone }()
 
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("ONE")}}, "other": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("TWO")}}}}
-	if err := Sync(cfg, "", false); err != nil {
+	if err := Sync(cfg, "", false, defaultSecurityConfig()); err != nil {
 		t.Fatalf("sync all: %v", err)
 	}
 	// capture keys
