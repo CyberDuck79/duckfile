@@ -20,6 +20,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Go templates with Sprig functions
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
+- Checksum validation of remote templates
 - Simple CLI that forwards args to your tool (make, task, helm, …)
 - Render-only workflow via `duck sync` when you don't want `duck` to execute your tools
 
@@ -45,6 +46,7 @@ targets:
       repo: https://github.com/CyberDuck79/duckfile-test-templates.git
       ref: main
       path: Makefile.tpl
+      checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     variables:
       PROJECT: my-service
       DATE: !cmd date +%Y-%m-%d

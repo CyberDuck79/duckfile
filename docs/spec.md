@@ -44,7 +44,7 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `allowMissing` | Boolean | ✖ | If `true`, missing keys render as zero values (empty strings). Default `false` (strict). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
 | `shallow` | Boolean | ✖ | Shallow clone (`--depth 1`). Default `true`. |
-| `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. |
+| `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. If provided, Duckfile will validate the fetched template file against this checksum. |
 
 ## 5. Variable value (`VarValue`)
 
@@ -89,6 +89,7 @@ targets:
       repo: https://github.com/CyberDuck79/duckfile-test-templates.git
       ref: main
       path: Makefile.tpl
+      checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     variables:
       PROJECT: my-service
       DATE: !cmd date +%Y-%m-%d
@@ -128,6 +129,14 @@ settings:
 - `duck clean [target]`: purge cache. If no target provided, removes all cached objects and per-target directories; otherwise only that target.
 
 When a target lacks `binary`, `duck` will refuse to execute it with the root command. Use `duck sync` and `duck clean` instead.
+
+## 11. Checksum validation and warnings
+
+When a template config includes a `checksum` property, Duckfile will validate the fetched template file against the provided SHA-256 checksum. If the checksum does not match, Duckfile will abort and print an error message showing the expected and actual checksum.
+
+If the template config changes (`repo`, `ref`, or `path`) but the `checksum` remains unchanged, Duckfile will print a warning that the checksum may be stale and should be updated.
+
+Checksum validation is optional. If no checksum is provided, Duckfile will proceed without validation.
 
 ## 10. JSON-Schema (v7) excerpt
 ```json

@@ -17,9 +17,10 @@ type Delims struct {
 }
 
 type Template struct {
-	Repo string `yaml:"repo"`
-	Ref  string `yaml:"ref"`
-	Path string `yaml:"path"`
+	Repo     string `yaml:"repo"`
+	Ref      string `yaml:"ref"`
+	Path     string `yaml:"path"`
+	Checksum string `yaml:"checksum,omitempty"`
 
 	// Optional delimiter override to avoid conflicts with downstream tools (e.g., Taskfile).
 	Delims *Delims `yaml:"delims,omitempty"`
