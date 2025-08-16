@@ -1,3 +1,14 @@
+// Package run provides the core execution logic for Duckfile operations.
+//
+// The main functions are:
+//   - Exec: Renders a template and executes the target binary
+//   - Sync: Renders templates without executing (useful for cache pre-population)
+//   - Clean: Removes cached templates and artifacts
+//
+// The Exec and Sync functions share common template preparation logic through
+// prepareAndRenderTemplate, which handles variable resolution, repository cloning,
+// checksum validation, template rendering, and cache management. This ensures
+// consistent behavior and reduces code duplication.
 package run
 
 import (
@@ -30,6 +41,15 @@ var (
 	cloneFunc   = git.CloneInto
 )
 
+// PrepareTemplateResult holds the results of template preparation
+// shared between Exec and Sync operations
+type PrepareTemplateResult struct {
+	ObjFile  string // Path to rendered object file
+	LinkPath string // Path where symlink should point
+	OldKey   string // Previous cache key (for cleanup)
+	CacheKey string // Current cache key
+}
+
 // Search target from configuration, return effective target name and configuration or error if unknown target.
 func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Target, error) {
 	// Determine the effective target key
@@ -50,30 +70,22 @@ func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Targe
 	return key, t, nil
 }
 
-// Exec renders and executes one target.
-func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
-	// Determine the effective target key
-	key, t, err := searchTarget(cfg, targetName)
-	if err != nil {
-		return err
-	}
-
-	logInfo("exec target %q", key)
+// prepareAndRenderTemplate handles the complete template preparation workflow
+// shared between Exec and Sync operations. It includes variable resolution,
+// cache computation, repository cloning, checksum validation, template rendering,
+// symlink management, and old cache cleanup.
+func prepareAndRenderTemplate(targetName string, target config.Target, force bool, securityCfg *config.SecurityConfig) (*PrepareTemplateResult, error) {
+	logInfo("prepare template for target %q", targetName)
 
 	// Validate repository host access before proceeding
-	if err := config.ValidateRepoAccess(t.Template.Repo, securityCfg); err != nil {
-		return fmt.Errorf("repository access denied: %w", err)
-	}
-
-	// Ensure executable configuration is present
-	if strings.TrimSpace(t.Binary) == "" {
-		return fmt.Errorf("target %q has no binary configured; use 'duck sync %s' to render without executing", key, key)
+	if err := config.ValidateRepoAccess(target.Template.Repo, securityCfg); err != nil {
+		return nil, fmt.Errorf("repository access denied: %w", err)
 	}
 
 	// 1. Resolve variables first (no need to clone to do this)
-	vars, err := resolveVariables(t.Variables)
+	vars, err := resolveVariables(target.Variables)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logInfo("resolved variables: %d", len(vars))
 	if currentLogLevel == LogDebug {
@@ -83,11 +95,11 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	}
 
 	// 2. Compute deterministic cache key and object path
-	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
+	base := strings.TrimSuffix(filepath.Base(target.Template.Path), ".tpl")
 
-	cacheKey, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
+	cacheKey, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	objDir := filepath.Join(".duck", "objects", cacheKey)
 	objFile := filepath.Join(objDir, base)
@@ -96,57 +108,68 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	logDebug("object dir %s", objDir)
 
 	// 3. Prepare per-target cache dir and compute symlink path
-	cacheDir := filepath.Join(".duck", key)
+	cacheDir := filepath.Join(".duck", targetName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return err
+		return nil, err
 	}
 
-	linkPath := t.RenderedPath
+	linkPath := target.RenderedPath
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base) // per-target path
 	}
 
-	// 4. If object is missing, fetch template repo and render it; otherwise, skip cloning
-	if _, statErr := os.Stat(objFile); statErr != nil {
-		logInfo("cache miss; rendering template")
-		logDebug("clone %s@%s", t.Template.Repo, t.Template.Ref)
-		// Fetch template repository at the requested ref
-		repoDir, err := cloneFunc(t.Template.Repo, t.Template.Ref, cacheDir)
-		if err != nil {
-			return err
+	// 4. If object is missing or force is true, fetch template repo and render it; otherwise, skip cloning
+	needRender := force
+	if !needRender {
+		if _, err := os.Stat(objFile); err != nil {
+			needRender = true
 		}
-		src := filepath.Join(repoDir, t.Template.Path)
+	}
+
+	if needRender {
+		if force {
+			logInfo("force re-render")
+		} else {
+			logInfo("cache miss; rendering template")
+		}
+		logDebug("clone %s@%s", target.Template.Repo, target.Template.Ref)
+		// Fetch template repository at the requested ref
+		repoDir, err := cloneFunc(target.Template.Repo, target.Template.Ref, cacheDir)
+		if err != nil {
+			return nil, err
+		}
+		src := filepath.Join(repoDir, target.Template.Path)
 		// If checksum is configured, validate it against the template file
-		if t.Template.Checksum != "" {
+		if target.Template.Checksum != "" {
 			sumFile := filepath.Join(cacheDir, "checksum.sha256")
 			// check if there is a checksum file
 			if _, err := os.Stat(sumFile); err == nil {
 				if oldChecksum, err := os.ReadFile(sumFile); err == nil {
 					logDebug("found old checksum %s", oldChecksum)
-					if string(oldChecksum) == t.Template.Checksum {
+					if string(oldChecksum) == target.Template.Checksum {
 						logWarn("template config (repo/ref/path/vars) changed but checksum is unchanged")
 					}
 				}
 			}
 			b, err := os.ReadFile(src)
 			if err != nil {
-				return fmt.Errorf("failed to read template for checksum validation: %w", err)
+				return nil, fmt.Errorf("failed to read template for checksum validation: %w", err)
 			}
 			sum := fmt.Sprintf("%x", sha256.Sum256(b))
-			if sum != t.Template.Checksum {
-				return fmt.Errorf("template checksum mismatch: expected %s, got %s", t.Template.Checksum, sum)
+			if sum != target.Template.Checksum {
+				return nil, fmt.Errorf("template checksum mismatch: expected %s, got %s", target.Template.Checksum, sum)
 			}
-			if err := os.WriteFile(sumFile, []byte(t.Template.Checksum), 0o644); err != nil {
-				return fmt.Errorf("failed to write checksum file: %w", err)
+			if err := os.WriteFile(sumFile, []byte(target.Template.Checksum), 0o644); err != nil {
+				return nil, fmt.Errorf("failed to write checksum file: %w", err)
 			}
 		}
 		if err := os.MkdirAll(objDir, 0o755); err != nil {
-			return err
+			return nil, err
 		}
-		if err := renderTemplate(src, objFile, t, vars); err != nil {
-			return err
+		if err := renderTemplate(src, objFile, target, vars); err != nil {
+			return nil, err
 		}
-		logInfo("rendered %s -> %s", t.Template.Path, objFile)
+		logInfo("rendered %s -> %s", target.Template.Path, objFile)
 	}
 	if _, err := os.Stat(objFile); err == nil {
 		logDebug("object present %s", objFile)
@@ -171,7 +194,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 
 	// 6. Create/update symlink to the current object
 	if err := ensureSymlink(objFile, linkPath); err != nil {
-		return err
+		return nil, err
 	}
 	logInfo("symlink %s -> %s", linkPath, objFile)
 
@@ -181,14 +204,54 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
 	}
 
-	// 8. Execute underlying binary with the symlink
+	return &PrepareTemplateResult{
+		ObjFile:  objFile,
+		LinkPath: linkPath,
+		OldKey:   oldKey,
+		CacheKey: cacheKey,
+	}, nil
+}
+
+// executeTarget handles the binary execution portion of Exec.
+// It takes the target configuration, rendered file path, and user arguments
+// and executes the binary with proper argument ordering.
+func executeTarget(target config.Target, linkPath string, passthrough []string) error {
 	// Order: [fileFlag linkPath] + target default args + user passthrough args
-	args := append([]string{t.FileFlag, linkPath}, []string(t.Args)...)
+	args := append([]string{target.FileFlag, linkPath}, []string(target.Args)...)
 	args = append(args, passthrough...)
-	cmd := execCommand(t.Binary, args...)
+	cmd := execCommand(target.Binary, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
-	logInfo("exec: %s %s", t.Binary, strings.Join(args, " "))
+	logInfo("exec: %s %s", target.Binary, strings.Join(args, " "))
 	return cmd.Run()
+}
+
+// Exec renders and executes one target.
+//
+// This function uses the shared prepareAndRenderTemplate function for template
+// processing (variable resolution, caching, checksum validation, etc.) and then
+// executes the target's binary with the rendered template.
+func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
+	// Determine the effective target key
+	key, t, err := searchTarget(cfg, targetName)
+	if err != nil {
+		return err
+	}
+
+	logInfo("exec target %q", key)
+
+	// Ensure executable configuration is present
+	if strings.TrimSpace(t.Binary) == "" {
+		return fmt.Errorf("target %q has no binary configured; use 'duck sync %s' to render without executing", key, key)
+	}
+
+	// Prepare template (shared logic with Sync)
+	result, err := prepareAndRenderTemplate(key, t, false, securityCfg)
+	if err != nil {
+		return err
+	}
+
+	// Execute underlying binary with the rendered template
+	return executeTarget(t, result.LinkPath, passthrough)
 }
 
 func renderTemplate(src, dst string, targ config.Target, data map[string]any) error {
@@ -339,84 +402,18 @@ func ensureSymlink(target, link string) error {
 // Sync renders templates into the cache without executing the target.
 // If targetName is empty, all targets (default + named) are synced.
 // If force is true, re-render regardless of existing cache.
+//
+// This function now shares the same template preparation logic as Exec,
+// including checksum validation, through the prepareAndRenderTemplate function.
 func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *config.SecurityConfig) error {
 	targets, err := collectTargets(cfg, targetName)
 	if err != nil {
 		return err
 	}
 	for name, t := range targets {
-		// Validate repository host access before syncing
-		if err := config.ValidateRepoAccess(t.Template.Repo, securityCfg); err != nil {
-			return fmt.Errorf("repository access denied for target %q: %w", name, err)
-		}
-		if err := syncOne(name, t, force); err != nil {
+		if _, err := prepareAndRenderTemplate(name, t, force, securityCfg); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func syncOne(targetName string, t config.Target, force bool) error {
-	logInfo("sync %q", targetName)
-	// Resolve variables and compute key/paths
-	vars, err := resolveVariables(t.Variables)
-	if err != nil {
-		return err
-	}
-	logDebug("vars count %d", len(vars))
-	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
-	key, err := computeCacheKey(t.Template.Repo, t.Template.Ref, t.Template.Path, vars)
-	if err != nil {
-		return err
-	}
-	objDir := filepath.Join(".duck", "objects", key)
-	objFile := filepath.Join(objDir, base)
-
-	cacheDir := filepath.Join(".duck", targetName)
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return err
-	}
-	linkPath := t.RenderedPath
-	if linkPath == "" {
-		linkPath = filepath.Join(cacheDir, base)
-	}
-
-	needRender := force
-	if !needRender {
-		if _, err := os.Stat(objFile); err != nil {
-			needRender = true
-		}
-	}
-	if needRender {
-		if force {
-			logInfo("force re-render")
-		} else {
-			logInfo("cache miss; rendering")
-		}
-		// Always fetch/clone then render
-		logDebug("clone %s@%s", t.Template.Repo, t.Template.Ref)
-		repoDir, err := cloneFunc(t.Template.Repo, t.Template.Ref, cacheDir)
-		if err != nil {
-			return err
-		}
-		src := filepath.Join(repoDir, t.Template.Path)
-		if err := os.MkdirAll(objDir, 0o755); err != nil {
-			return err
-		}
-		if err := renderTemplate(src, objFile, t, vars); err != nil {
-			return err
-		}
-		logInfo("rendered %s -> %s", t.Template.Path, objFile)
-	}
-
-	// Detect previous key via symlink before updating
-	oldKey := detectKeyFromSymlink(linkPath)
-	if err := ensureSymlink(objFile, linkPath); err != nil {
-		return err
-	}
-	if oldKey != "" && oldKey != key {
-		logInfo("prune old key %s", oldKey)
-		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
 	}
 	return nil
 }
