@@ -11,6 +11,19 @@ func init() {
 	addCmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a new target to existing duck.yaml",
+		Long: `Interactive wizard to add a new target to an existing duck.yaml file.
+
+This command will prompt you for:
+- Target name
+- Target description  
+- Remote template repository URL
+- Git reference (branch, tag, or commit)
+- Template file path within the repository
+- Binary to execute (make, task, helm, etc.)
+- File flag for the binary (-f, --values, etc.)
+- Template variables
+
+The new target will be appended to your existing duck.yaml configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {

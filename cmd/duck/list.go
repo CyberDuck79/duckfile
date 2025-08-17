@@ -20,7 +20,20 @@ func init() {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List targets defined in duck.yaml",
-		Long:  "List targets (default + named) from the configuration. Shows name and description by default. Use flags to include remote template, variables, and execution info.\n\nLogging: Use --log-level to control verbosity (error, warn, info, debug).",
+		Long: `List all targets from the duck.yaml configuration file.
+
+Shows target names and descriptions by default. Use flags to include additional details.
+
+FLAGS
+  -r, --remote           Show remote template information (repo, ref, path)
+  -v, --vars             Show template variables
+  -e, --exec             Show execution info (binary, file flag)
+  --log-level string     Log level: error, warn, info, debug
+
+EXAMPLES
+  duck list              List targets with names and descriptions
+  duck list -r           Include remote template details
+  duck list -v -e        Show variables and execution info`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {

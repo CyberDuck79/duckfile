@@ -14,6 +14,19 @@ func init() {
 	initCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Interactive wizard to create a duck.yaml",
+		Long: `Interactive wizard to create a new duck.yaml configuration file.
+
+This command will guide you through setting up your first duck.yaml with:
+- Project name and description
+- Default target configuration
+- Remote template repository
+- Git reference (branch, tag, or commit) 
+- Template file path
+- Binary to execute (make, task, helm, etc.)
+- File flag for the binary
+- Template variables
+
+The wizard creates a complete duck.yaml file ready for use.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := os.Stat("duck.yaml"); err == nil {
 				return fmt.Errorf("duck.yaml already exists")

@@ -14,8 +14,18 @@ func init() {
 	cleanCmd := &cobra.Command{
 		Use:   "clean [target]",
 		Short: "Purge cached objects and per-target directories",
-		Long:  "Purge cache by removing .duck/objects and per-target directories. Provide an optional target to clean only that target.\n\nLogging: Use --log-level to control verbosity (error, warn, info, debug).",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Clean the duck cache by removing cached objects and working directories.
+
+USAGE
+  duck clean             Clean all cached objects and directories
+  duck clean [target]    Clean only the specified target
+
+FLAGS
+  --log-level string     Log level: error, warn, info, debug
+
+This removes .duck/objects and per-target directories to force fresh downloads
+and rendering on the next sync or execution.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
