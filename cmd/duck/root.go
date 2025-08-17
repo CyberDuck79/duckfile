@@ -11,8 +11,8 @@ import (
 )
 
 // test seam - updated to include security config
-var runExec = func(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
-	return run.Exec(cfg, targetName, passthrough, securityCfg)
+var runExec = func(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+	return run.Exec(cfg, targetName, passthrough, securityCfg, trackCommitHashFlag, autoUpdateOnChangeFlag)
 }
 
 // Version is injected at build time with: go build -ldflags "-X main.Version=<version>"
@@ -43,8 +43,18 @@ Precedence: CLI flag > DUCK_LOG_LEVEL env var > settings.logLevel > default (inf
 CLI Flags:
   --log-level=debug       # Set log level (error, warn, info, debug)
 
+COMMIT HASH VALIDATION:
+Commit hash tracking can be configured via CLI flag, environment variable, or config file.
+Precedence: CLI flag > env var > template config > global settings > default (false)
+
+CLI Flags (mutually exclusive):
+  --track-commit-hash / --no-track-commit-hash         # Enable/disable commit hash tracking
+  --auto-update-on-change / --no-auto-update-on-change # Enable/disable auto-update behavior
+
 Environment Variables:
-  DUCK_LOG_LEVEL="info"   # Set default log level
+  DUCK_LOG_LEVEL="info"                # Set default log level
+  DUCK_TRACK_COMMIT_HASH="true"       # Enable commit hash tracking globally
+  DUCK_AUTO_UPDATE_ON_CHANGE="false"  # Control auto-update behavior globally
 
 SECURITY:
 Host allow/deny lists can be configured via environment variables or CLI flags
@@ -67,7 +77,9 @@ Examples:
   duck test -- --verbose                 # Execute 'test' target with args
   duck sync                               # Sync all templates to cache
   duck --allowed-hosts=github.com build   # Only allow GitHub repositories
-  duck --log-level=debug build            # Execute with debug logging`,
+  duck --log-level=debug build            # Execute with debug logging
+  duck --track-commit-hash build          # Enable commit hash tracking
+  duck --no-auto-update-on-change build   # Disable auto-update on commit changes`,
 	SilenceUsage:       true,
 	SilenceErrors:      true,
 	DisableFlagParsing: true, // Disable to handle custom parsing with -- separator
@@ -75,9 +87,11 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Manual parsing for target and passthrough args due to -- separator
 		var (
-			target   string
-			binArgs  []string
-			logLevel string
+			target             string
+			binArgs            []string
+			logLevel           string
+			trackCommitHash    *bool
+			autoUpdateOnChange *bool
 		)
 
 		// Find "--" separator
@@ -108,6 +122,18 @@ Examples:
 			case arg == "--log-level" && i+1 < len(duckArgs):
 				logLevel = duckArgs[i+1]
 				i++ // skip next arg
+			case arg == "--track-commit-hash":
+				trackTrue := true
+				trackCommitHash = &trackTrue
+			case arg == "--no-track-commit-hash":
+				trackFalse := false
+				trackCommitHash = &trackFalse
+			case arg == "--auto-update-on-change":
+				updateTrue := true
+				autoUpdateOnChange = &updateTrue
+			case arg == "--no-auto-update-on-change":
+				updateFalse := false
+				autoUpdateOnChange = &updateFalse
 			case strings.HasPrefix(arg, "--allowed-hosts="):
 				hostStr := arg[len("--allowed-hosts="):]
 				allowedHosts = strings.Split(hostStr, ",")
@@ -157,7 +183,7 @@ Examples:
 		securityCfg := config.BuildSecurityConfig(allowedHosts, deniedHosts, strictMode)
 
 		// 5. execute with security validation
-		return runExec(cfg, target, binArgs, securityCfg)
+		return runExec(cfg, target, binArgs, securityCfg, trackCommitHash, autoUpdateOnChange)
 	},
 }
 

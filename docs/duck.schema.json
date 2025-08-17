@@ -15,9 +15,17 @@
       "properties": {
         "cacheDir": { "type": "string" },
         "logLevel": { "type": "string", "enum": ["error","warn","info","debug"] },
-        "locked": { "type": "boolean" }
+        "locked": { "type": "boolean" },
+        "trackCommitHash": { "type": "boolean" },
+        "autoUpdateOnChange": { "type": "boolean" }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
+          "then": { "properties": { "trackCommitHash": { "const": true } } }
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -80,9 +88,27 @@
         "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
         "shallow": { "type": "boolean" },
-        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+        "trackCommitHash": { "type": "boolean" },
+        "autoUpdateOnChange": { "type": "boolean" }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "trackCommitHash": { "const": true } } },
+          "then": { 
+            "not": { 
+              "properties": { 
+                "ref": { "pattern": "^[A-Fa-f0-9]{40}$" } 
+              } 
+            } 
+          }
+        },
+        {
+          "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
+          "then": { "properties": { "trackCommitHash": { "const": true } } }
+        }
+      ]
     }
   }
 }

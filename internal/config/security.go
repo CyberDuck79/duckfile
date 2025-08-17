@@ -50,9 +50,11 @@ func LoadSecurityConfigFromEnv() *SecurityConfig {
 }
 
 // BuildSecurityConfig creates a security configuration with CLI flag precedence.
-// CLI flags override environment variables.
+// CLI flags override environment variables. Only creates a CLI config when
+// meaningful values are provided (non-empty slices or strict mode enabled).
 func BuildSecurityConfig(cliAllowed []string, cliDenied []string, cliStrict bool) *SecurityConfig {
-	// CLI flags have highest precedence
+	// Only use CLI configuration if meaningful values are provided
+	// (non-empty host lists or strict mode explicitly enabled)
 	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
 		return &SecurityConfig{
 			AllowedHosts: cliAllowed,
@@ -62,7 +64,7 @@ func BuildSecurityConfig(cliAllowed []string, cliDenied []string, cliStrict bool
 		}
 	}
 
-	// Fallback to environment variables
+	// No meaningful CLI flags provided - fallback to environment variables
 	return LoadSecurityConfigFromEnv()
 }
 
