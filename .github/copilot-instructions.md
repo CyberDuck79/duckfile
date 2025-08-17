@@ -4,8 +4,11 @@ The presentation and onboarding materials can be found in the `README.md` file.
 The json schema for the Duckfile project can be found in the `docs/duck.schema.json` file.
 
 # Instructions for Agent
+When asked to plan changes, please provide a summary of what you understand from the request, ask for clarification if you are unsure about any aspect of the project or the changes you were asked to make, and provide feedback if you think it would be helpful.
+If the plan involves significant changes, do not give code snippets and instead provide a high-level overview of the changes.
 When you perform a modification, please ensure that you test your changes thoroughly, explain each test case with a comment.
 Additionally, make sure to update any relevant documentation to reflect your changes.
+Give feedback on the code, the documentation, and suggest improvements at the end of your work.
 
 # Git 
 When working with Git, please follow these guidelines:
