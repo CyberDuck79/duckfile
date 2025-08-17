@@ -45,6 +45,8 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
 | `shallow` | Boolean | ✖ | Shallow clone (`--depth 1`). Default `true`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. If provided, Duckfile will validate the fetched template file against this checksum. |
+| `trackCommitHash` | Boolean | ✖ | Enable commit hash validation and tracking. When `true`, Duckfile stores the actual commit hash after fetching and validates it hasn't changed on subsequent runs. Default `false`. **Note: Cannot be used with commit hash refs (40-character hex strings).** |
+| `autoUpdateOnChange` | Boolean | ✖ | Automatically update cache when remote commit hash changes. Only valid when `trackCommitHash` is `true`. Default `false`. When enabled, cache is automatically invalidated and re-fetched if the remote commit hash differs from the stored value. |
 
 ## 5. Variable value (`VarValue`)
 
@@ -68,6 +70,8 @@ Notes:
 | `cacheDir` | String | `.duck/objects` | Folder for cache objects. |
 | `logLevel` | Enum `error` `warn` `info` `debug` | `info` | Verbosity of CLI output. Can be overridden by `--log-level` CLI flag or `DUCK_LOG_LEVEL` environment variable. Precedence: CLI flag > env var > config > default. |
 | `locked` | Boolean | `false` | If `true`, `duck` exits when template or variables changed instead of updating. |
+| `trackCommitHash` | Boolean | `false` | Global default for commit hash tracking. Can be overridden per-template and by CLI flags. |
+| `autoUpdateOnChange` | Boolean | `false` | Global default for auto-update behavior. Can be overridden per-template and by CLI flags. |
 
 **Security Configuration (Host Allow/Deny Lists)**
 
@@ -110,6 +114,95 @@ For supply-chain security, Duckfile supports restricting which Git hosts can be 
 - **Exact matching**: Currently supports exact hostname matching (wildcards planned for future)
 - **Validation timing**: Host validation occurs before git operations, providing fast feedback
 
+## 7. Commit Hash Tracking and Validation
+
+Duckfile supports tracking and validating commit hashes to detect when remote templates have changed. This feature helps ensure reproducible builds and provides early warning when templates are updated.
+
+### Configuration
+
+Commit hash tracking can be configured at multiple levels:
+
+1. **Template level** (in `duck.yaml`):
+```yaml
+targets:
+  build:
+    template:
+      repo: https://github.com/example/templates.git
+      ref: main
+      path: Makefile.tpl
+      trackCommitHash: true
+      autoUpdateOnChange: true
+```
+
+2. **Global level** (in `duck.yaml` settings):
+```yaml
+settings:
+  trackCommitHash: true
+  autoUpdateOnChange: false
+```
+
+3. **Environment variables**:
+```bash
+export DUCK_TRACK_COMMIT_HASH="true"
+export DUCK_AUTO_UPDATE_ON_CHANGE="true"
+```
+
+4. **CLI flags** (highest precedence):
+```bash
+# Root command
+duck build --track-commit-hash --auto-update-on-change
+duck --no-track-commit-hash build
+
+# Sync command  
+duck sync --track-commit-hash --no-auto-update-on-change
+duck sync target --no-track-commit-hash
+```
+
+### Precedence Rules
+
+The commit hash tracking configuration follows this precedence (highest to lowest):
+
+1. **CLI flags** (`--track-commit-hash`, `--no-track-commit-hash`, `--auto-update-on-change`, `--no-auto-update-on-change`)
+2. **Environment variables** (`DUCK_TRACK_COMMIT_HASH`, `DUCK_AUTO_UPDATE_ON_CHANGE`)
+3. **Template-level configuration** (`template.trackCommitHash`, `template.autoUpdateOnChange`)
+4. **Global configuration** (`settings.trackCommitHash`, `settings.autoUpdateOnChange`)
+5. **Default** (`false` for both settings)
+
+### Validation Rules
+
+- **Commit hash refs not allowed**: When `trackCommitHash` is enabled, the template `ref` cannot be a commit hash (40-character hex string). Use branch or tag names instead.
+- **Auto-update requires tracking**: `autoUpdateOnChange` can only be `true` when `trackCommitHash` is also `true`.
+- **Network resilience**: If network errors occur during validation, Duckfile continues with cached templates and logs a warning.
+
+### Behavior
+
+**With tracking enabled (`trackCommitHash: true`)**:
+- On first fetch: Duckfile resolves the branch/tag to a commit hash and stores it alongside the cached template
+- On subsequent runs: Duckfile checks if the remote commit hash has changed
+- If unchanged: Uses cached template (fast)
+- If changed: Logs the change and either updates automatically or warns the user
+
+**With auto-update enabled (`autoUpdateOnChange: true`)**:
+- Automatically invalidates cache and re-fetches when commit hash changes
+- Provides seamless updates while tracking what changed
+- Logs the old and new commit hashes for audit trails
+
+**Example workflows**:
+
+```bash
+# Enable tracking with manual updates (default)
+duck sync --track-commit-hash
+# Output: "🔄 commit hash changed for repo@main: abc123 -> def456"
+
+# Enable tracking with automatic updates  
+duck sync --track-commit-hash --auto-update-on-change
+# Output: "📦 Updating template cache: repo@main" (transparent update)
+
+# Disable tracking entirely (backward compatible)
+duck sync --no-track-commit-hash
+# No commit hash checking, cache based only on template config
+```
+
 ### Security Best Practices:
 - Set restrictions in environment variables that require elevated privileges to modify
 - Use deny lists for known malicious hosts
@@ -122,12 +215,13 @@ For supply-chain security, Duckfile supports restricting which Git hosts can be 
 - SSH (SCP-style): `git@github.com:user/repo.git`  
 - SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
 
-## 7. Deterministic cache (informative)
-Key = `SHA1(repo + ref + path + resolvedVariablesJSON)`.  
+## 8. Deterministic cache (informative)
+Key = `SHA1(repo + ref + path + resolvedVariablesJSON + commitHashTracking)`.  
+When commit hash tracking is enabled, the actual resolved commit hash is included in the cache key computation to ensure cache invalidation when commits change.  
 Stored at `.duck/objects/<key>/<basename>`.  
 A symlink is created at `renderedPath` (or `.duck/<target>/<basename>`) pointing to the object.
 
-## 8. Example config
+## 9. Example config
 ```yaml
 version: 1
 
@@ -142,6 +236,8 @@ targets:
       ref: main
       path: Makefile.tpl
       checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      trackCommitHash: true
+      autoUpdateOnChange: true
     variables:
       PROJECT: my-service
       DATE: !cmd date +%Y-%m-%d
@@ -156,6 +252,7 @@ targets:
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }
       allowMissing: true
+      trackCommitHash: true  # Track without auto-update for tags
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
@@ -172,13 +269,19 @@ targets:
 
 settings:
   logLevel: debug
-  allowedHosts: [github.com]
+  trackCommitHash: false  # Global default (can be overridden per-template)
+  autoUpdateOnChange: false
 ```
 
-## 9. CLI subcommands
+## 10. CLI subcommands
 
 - `duck sync [target] [-f]`: render into cache and update symlinks without executing the tool. With `-f/--force`, ignore cache and re-render. If no target is provided, syncs all (default + named) targets.
+  - `--track-commit-hash` / `--no-track-commit-hash`: Override commit hash tracking setting
+  - `--auto-update-on-change` / `--no-auto-update-on-change`: Override auto-update behavior
 - `duck clean [target]`: purge cache. If no target provided, removes all cached objects and per-target directories; otherwise only that target.
+- `duck [target] [args...]`: render template, create symlink, and execute the binary with the rendered file. Supports the same commit hash tracking flags as `sync`.
+  - `--track-commit-hash` / `--no-track-commit-hash`: Override commit hash tracking setting  
+  - `--auto-update-on-change` / `--no-auto-update-on-change`: Override auto-update behavior
 
 When a target lacks `binary`, `duck` will refuse to execute it with the root command. Use `duck sync` and `duck clean` instead.
 
@@ -190,7 +293,7 @@ If the template config changes (`repo`, `ref`, or `path`) but the `checksum` rem
 
 Checksum validation is optional. If no checksum is provided, Duckfile will proceed without validation.
 
-## 10. JSON-Schema (v7) excerpt
+## 12. JSON-Schema (v7) excerpt
 ```json
 {
   "definitions": {
@@ -232,14 +335,49 @@ Checksum validation is optional. If no checksum is provided, Duckfile will proce
         "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
         "shallow": { "type": "boolean" },
-        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+        "trackCommitHash": { "type": "boolean" },
+        "autoUpdateOnChange": { "type": "boolean" }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "trackCommitHash": { "const": true } } },
+          "then": { 
+            "not": { 
+              "properties": { 
+                "ref": { "pattern": "^[A-Fa-f0-9]{40}$" } 
+              } 
+            } 
+          }
+        },
+        {
+          "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
+          "then": { "properties": { "trackCommitHash": { "const": true } } }
+        }
+      ]
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "cacheDir": { "type": "string" },
+        "logLevel": { "type": "string", "enum": ["error","warn","info","debug"] },
+        "locked": { "type": "boolean" },
+        "trackCommitHash": { "type": "boolean" },
+        "autoUpdateOnChange": { "type": "boolean" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
+          "then": { "properties": { "trackCommitHash": { "const": true } } }
+        }
+      ]
     }
   }
 }
 ```
 
-## 10. Migration rules
+## 13. Migration rules
 Future changes will be announced with a version bump; for MVP users, no migration is required.
 

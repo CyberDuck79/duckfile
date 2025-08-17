@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/CyberDuck79/duckfile/internal/git"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,6 +27,10 @@ type Template struct {
 	Delims *Delims `yaml:"delims,omitempty"`
 	// If true, missing keys render as empty strings (zero values). Default: strict error.
 	AllowMissing bool `yaml:"allowMissing,omitempty"`
+	// If true, enables commit hash storage and validation. Default: false.
+	TrackCommitHash bool `yaml:"trackCommitHash,omitempty"`
+	// If true, auto-update if commit hash changes; otherwise warn and stop. Default: false.
+	AutoUpdateOnChange bool `yaml:"autoUpdateOnChange,omitempty"`
 }
 
 // VarKind represents the origin/behavior of a variable value.
@@ -129,9 +134,11 @@ type Target struct {
 
 // Settings represents the global configuration options
 type Settings struct {
-	CacheDir string `yaml:"cacheDir,omitempty"`
-	LogLevel string `yaml:"logLevel,omitempty"`
-	Locked   bool   `yaml:"locked,omitempty"`
+	CacheDir           string `yaml:"cacheDir,omitempty"`
+	LogLevel           string `yaml:"logLevel,omitempty"`
+	Locked             bool   `yaml:"locked,omitempty"`
+	TrackCommitHash    bool   `yaml:"trackCommitHash,omitempty"`
+	AutoUpdateOnChange bool   `yaml:"autoUpdateOnChange,omitempty"`
 }
 
 // GetLogLevel returns the configured log level or default "info"
@@ -156,6 +163,22 @@ func (s *Settings) IsLocked() bool {
 		return false
 	}
 	return s.Locked
+}
+
+// GetTrackCommitHash returns whether commit hash tracking is enabled globally
+func (s *Settings) GetTrackCommitHash() bool {
+	if s == nil {
+		return false
+	}
+	return s.TrackCommitHash
+}
+
+// GetAutoUpdateOnChange returns whether auto-update on commit hash change is enabled globally
+func (s *Settings) GetAutoUpdateOnChange() bool {
+	if s == nil {
+		return false
+	}
+	return s.AutoUpdateOnChange
 }
 
 type DuckConf struct {
@@ -298,6 +321,41 @@ func validateTarget(t Target, name string) error {
 			return fmt.Errorf("target %q: fileFlag is required when binary is set", name)
 		}
 	}
+
+	// Validate commit hash tracking configuration
+	return validateCommitHashTracking(t.Template, name)
+}
+
+// validateCommitHashTracking checks if commit hash tracking is properly configured.
+// If ref is already a commit hash, commit hash tracking doesn't make sense since commit hashes don't change.
+func validateCommitHashTracking(template Template, targetName string) error {
+	// If commit hash tracking is enabled, validate that ref is not already a commit hash
+	if template.TrackCommitHash {
+		if template.Ref != "" && git.IsCommitHash(template.Ref) {
+			return fmt.Errorf("target %q: commit hash tracking is invalid when ref is already a commit hash (%s).\n\n"+
+				"Commit hashes are immutable and don't change, so tracking them is unnecessary.\n\n"+
+				"To fix this issue, choose one of the following options:\n"+
+				"  • Change 'ref' to a branch name (e.g., 'main', 'develop') or tag name (e.g., 'v1.0.0')\n"+
+				"  • Set 'trackCommitHash: false' in your configuration\n"+
+				"  • Remove the 'trackCommitHash' setting to use the default (false)\n\n"+
+				"Example configurations:\n"+
+				"  ref: main                    # Use branch name\n"+
+				"  ref: v1.0.0                  # Use tag name\n"+
+				"  trackCommitHash: false       # Disable tracking",
+				targetName, template.Ref)
+		}
+	}
+
+	// If auto-update is enabled, commit hash tracking must also be enabled
+	if template.AutoUpdateOnChange && !template.TrackCommitHash {
+		return fmt.Errorf("target %q: autoUpdateOnChange requires trackCommitHash to be enabled.\n\n"+
+			"To fix this issue, add 'trackCommitHash: true' to your template configuration.\n\n"+
+			"Example configuration:\n"+
+			"  trackCommitHash: true\n"+
+			"  autoUpdateOnChange: true",
+			targetName)
+	}
+
 	return nil
 }
 
@@ -331,4 +389,58 @@ func ResolveLogLevel(cliLogLevel string, cfg *DuckConf) string {
 
 	// 4. Default
 	return "info"
+}
+
+// ResolveTrackCommitHash determines the effective track commit hash setting from CLI flag, environment, and config
+// Precedence: CLI flag > Environment variable > Template config > Global settings > Default (false)
+func ResolveTrackCommitHash(cliFlag *bool, template *Template, cfg *DuckConf) bool {
+	// 1. CLI flag has highest precedence
+	if cliFlag != nil {
+		return *cliFlag
+	}
+
+	// 2. Environment variable
+	if envValue := strings.TrimSpace(os.Getenv("DUCK_TRACK_COMMIT_HASH")); envValue != "" {
+		return strings.ToLower(envValue) == "true" || envValue == "1"
+	}
+
+	// 3. Template configuration
+	if template != nil && template.TrackCommitHash {
+		return true
+	}
+
+	// 4. Global settings
+	if cfg != nil && cfg.Settings != nil {
+		return cfg.Settings.GetTrackCommitHash()
+	}
+
+	// 5. Default
+	return false
+}
+
+// ResolveAutoUpdateOnChange determines the effective auto-update setting from CLI flag, environment, and config
+// Precedence: CLI flag > Environment variable > Template config > Global settings > Default (false)
+func ResolveAutoUpdateOnChange(cliFlag *bool, template *Template, cfg *DuckConf) bool {
+	// 1. CLI flag has highest precedence
+	if cliFlag != nil {
+		return *cliFlag
+	}
+
+	// 2. Environment variable
+	if envValue := strings.TrimSpace(os.Getenv("DUCK_AUTO_UPDATE_ON_CHANGE")); envValue != "" {
+		return strings.ToLower(envValue) == "true" || envValue == "1"
+	}
+
+	// 3. Template configuration
+	if template != nil && template.AutoUpdateOnChange {
+		return true
+	}
+
+	// 4. Global settings
+	if cfg != nil && cfg.Settings != nil {
+		return cfg.Settings.GetAutoUpdateOnChange()
+	}
+
+	// 5. Default
+	return false
 }

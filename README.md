@@ -21,6 +21,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
 - Checksum validation of remote templates
+- **Commit hash tracking and validation for reproducible builds**
 - **Host allow/deny lists for supply-chain security**
 - Simple CLI that forwards args to your tool (make, task, helm, …)
 - Render-only workflow via `duck sync` when you don't want `duck` to execute your tools
@@ -48,6 +49,8 @@ targets:
       ref: main
       path: Makefile.tpl
       checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      trackCommitHash: true        # Track commit changes
+      autoUpdateOnChange: true     # Auto-update when changed
     variables:
       PROJECT: my-service
       DATE: !cmd date +%Y-%m-%d
@@ -62,6 +65,7 @@ targets:
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }  # avoid Task's {{ }}
       allowMissing: true                   # missing vars => ""
+      trackCommitHash: true                # Track tags for updates
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
@@ -108,6 +112,14 @@ duck --log-level=info
 # extremely detailed (includes variable values, paths, clone steps)
 duck --log-level=debug
 duck sync --log-level=debug   # set log level for subcommands
+
+# commit hash tracking and validation
+# enable tracking with manual updates (warns about changes)
+duck build --track-commit-hash
+# enable tracking with automatic updates (transparent updates)  
+duck sync --track-commit-hash --auto-update-on-change
+# disable tracking entirely (backward compatible)
+duck --no-track-commit-hash build
 ```
 
 ## Security Features
@@ -144,6 +156,101 @@ duck sync
 - **Case insensitive**: `GitHub.COM` matches `github.com`
 
 See the [security schema](docs/security.schema.json) and [full specification](docs/spec.md) for complete details.
+
+## Commit Hash Validation
+
+Duckfile can track and validate commit hashes to detect when remote templates change, ensuring reproducible builds and providing early warning of template updates.
+
+### Basic Usage
+
+**Configuration in `duck.yaml`:**
+```yaml
+targets:
+  build:
+    template:
+      repo: https://github.com/example/templates.git
+      ref: main  # Use branch/tag names, not commit hashes
+      path: Makefile.tpl
+      trackCommitHash: true        # Enable tracking
+      autoUpdateOnChange: true     # Auto-update when commits change
+
+# Or set globally in settings
+settings:
+  trackCommitHash: true
+  autoUpdateOnChange: false  # Manual updates by default
+```
+
+**CLI flags override configuration:**
+```bash
+# Enable tracking with manual updates
+duck build --track-commit-hash
+
+# Enable tracking with automatic updates
+duck sync --track-commit-hash --auto-update-on-change
+
+# Disable tracking entirely
+duck --no-track-commit-hash build
+```
+
+**Environment variables for system-wide defaults:**
+```bash
+export DUCK_TRACK_COMMIT_HASH="true"
+export DUCK_AUTO_UPDATE_ON_CHANGE="true"
+duck build  # Uses environment settings
+```
+
+### How It Works
+
+**First Run (tracking enabled):**
+1. Fetches template from `repo@ref`
+2. Resolves branch/tag to actual commit hash
+3. Stores commit hash alongside cached template
+4. Renders and executes normally
+
+**Subsequent Runs:**
+1. Checks if remote commit hash has changed
+2. **Without auto-update**: Warns about changes, uses cached template
+3. **With auto-update**: Automatically re-fetches and updates cache
+
+### Configuration Precedence
+
+Settings are resolved in this order (highest to lowest priority):
+
+1. **CLI flags**: `--track-commit-hash`, `--no-track-commit-hash`, `--auto-update-on-change`, `--no-auto-update-on-change`
+2. **Environment variables**: `DUCK_TRACK_COMMIT_HASH`, `DUCK_AUTO_UPDATE_ON_CHANGE` 
+3. **Template config**: `template.trackCommitHash`, `template.autoUpdateOnChange`
+4. **Global config**: `settings.trackCommitHash`, `settings.autoUpdateOnChange`
+5. **Default**: `false` (disabled)
+
+### Example Workflows
+
+**Development (auto-update enabled):**
+```bash
+# Templates update automatically as upstream changes
+duck build --track-commit-hash --auto-update-on-change
+# Output: "📦 Updating template cache: repo@main" (if changed)
+```
+
+**Production (manual updates):**
+```bash
+# Get warned about changes but continue with cached template
+duck build --track-commit-hash --no-auto-update-on-change  
+# Output: "🔄 commit hash changed for repo@main: abc123 -> def456"
+```
+
+**Strict reproducibility (tracking disabled):**
+```bash
+# Use exact commit hashes in config, disable tracking
+duck build --no-track-commit-hash
+# Template ref: "a1b2c3d4e5f6..." (40-char commit hash)
+```
+
+### Validation Rules
+
+- **Branch/tag only**: Commit hash tracking requires `ref` to be a branch or tag name, not a commit hash
+- **Auto-update dependency**: `autoUpdateOnChange` requires `trackCommitHash` to be enabled
+- **Network resilience**: Network failures during validation result in warnings, not errors
+- **Fast feedback**: Remote checking happens before expensive git operations
 
 ## Logging Configuration
 

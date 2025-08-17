@@ -34,6 +34,6 @@ go.work.sum
 # duck cache folder
 .duck
 # duck binary local build
-duck
+/duck
 # test
 Makefile

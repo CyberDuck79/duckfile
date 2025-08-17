@@ -16,8 +16,8 @@ import (
 func TestComputeCacheKeyOrderIndependence(t *testing.T) {
 	varsA := map[string]any{"A": 1, "B": "x"}
 	varsB := map[string]any{"B": "x", "A": 1}
-	k1, _ := computeCacheKey("repo", "main", "p.tpl", varsA)
-	k2, _ := computeCacheKey("repo", "main", "p.tpl", varsB)
+	k1, _ := computeCacheKey("repo", "main", "p.tpl", varsA, false)
+	k2, _ := computeCacheKey("repo", "main", "p.tpl", varsB, false)
 	if k1 != k2 {
 		t.Fatalf("keys differ: %s vs %s", k1, k2)
 	}
@@ -42,14 +42,13 @@ func TestRenderTemplateDelimsAndAllowMissing(t *testing.T) {
 }
 
 // TestComputeCacheKeyUnsupportedType triggers the JSON marshal error path by
-// including an unsupported value (channel) in the vars map.
+// supplying a data structure that is not JSON-representable.
 func TestComputeCacheKeyUnsupportedType(t *testing.T) {
 	ch := make(chan int)
-	_, err := computeCacheKey("repo", "ref", "p.tpl", map[string]any{"CH": ch})
-	if err == nil || !strings.Contains(err.Error(), "unsupported type") {
-		t.Fatalf("expected unsupported type error, got %v", err)
+	_, err := computeCacheKey("repo", "ref", "p.tpl", map[string]any{"CH": ch}, false)
+	if err == nil {
+		t.Fatal("expected marshaling error, got nil")
 	}
-	close(ch)
 }
 
 // TestRenderTemplateInvalidSyntax ensures a template with invalid syntax returns

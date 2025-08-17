@@ -35,10 +35,12 @@ import (
 
 // Test seams (overridable in tests for determinism / stubbing)
 var (
-	nowFunc     = time.Now
-	getenvFunc  = os.Getenv
-	execCommand = exec.Command
-	cloneFunc   = git.CloneInto
+	nowFunc              = time.Now
+	getenvFunc           = os.Getenv
+	execCommand          = exec.Command
+	cloneFunc            = git.CloneInto
+	getRemoteCommitFunc  = git.GetRemoteCommitHash
+	getCurrentCommitFunc = git.GetCurrentCommitHash
 )
 
 // PrepareTemplateResult holds the results of template preparation
@@ -74,7 +76,7 @@ func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Targe
 // shared between Exec and Sync operations. It includes variable resolution,
 // cache computation, repository cloning, checksum validation, template rendering,
 // symlink management, and old cache cleanup.
-func prepareAndRenderTemplate(targetName string, target config.Target, force bool, securityCfg *config.SecurityConfig) (*PrepareTemplateResult, error) {
+func prepareAndRenderTemplate(targetName string, target config.Target, cfg *config.DuckConf, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*PrepareTemplateResult, error) {
 	logInfo("prepare template for target %q", targetName)
 
 	// Validate repository host access before proceeding
@@ -97,7 +99,10 @@ func prepareAndRenderTemplate(targetName string, target config.Target, force boo
 	// 2. Compute deterministic cache key and object path
 	base := strings.TrimSuffix(filepath.Base(target.Template.Path), ".tpl")
 
-	cacheKey, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars)
+	// Resolve commit hash tracking setting for cache key computation
+	trackCommitHash := config.ResolveTrackCommitHash(trackCommitHashFlag, &target.Template, cfg)
+
+	cacheKey, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars, trackCommitHash)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +123,7 @@ func prepareAndRenderTemplate(targetName string, target config.Target, force boo
 		linkPath = filepath.Join(cacheDir, base) // per-target path
 	}
 
-	// 4. If object is missing or force is true, fetch template repo and render it; otherwise, skip cloning
+	// 4. Check if we need to render: cache miss, force flag, or commit hash validation
 	needRender := force
 	if !needRender {
 		if _, err := os.Stat(objFile); err != nil {
@@ -126,11 +131,60 @@ func prepareAndRenderTemplate(targetName string, target config.Target, force boo
 		}
 	}
 
+	// 4.1. If cache exists and commit hash tracking is enabled, validate the cached commit hash
+	if !needRender && trackCommitHash {
+		logInfo("🔍 Checking for remote updates: %s@%s", target.Template.Repo, target.Template.Ref)
+		logDebug("validating cached commit hash for %s@%s", target.Template.Repo, target.Template.Ref)
+
+		cacheValid, err := validateCachedCommitHash(target.Template.Repo, target.Template.Ref, objDir)
+		if err != nil {
+			logError("commit hash validation failed for %s@%s: %v", target.Template.Repo, target.Template.Ref, err)
+			return nil, fmt.Errorf("commit hash validation failed: %w", err)
+		}
+
+		if !cacheValid {
+			// Commit hash has changed - check auto-update setting
+			autoUpdate := config.ResolveAutoUpdateOnChange(autoUpdateOnChangeFlag, &target.Template, cfg)
+
+			if autoUpdate {
+				logInfo("📦 Updating template cache: %s@%s", target.Template.Repo, target.Template.Ref)
+				logInfo("commit hash changed for %s@%s, auto-updating cache", target.Template.Repo, target.Template.Ref)
+				if err := invalidateCache(objDir); err != nil {
+					logError("failed to invalidate cache for %s@%s: %v", target.Template.Repo, target.Template.Ref, err)
+					return nil, err
+				}
+				needRender = true
+			} else {
+				// Create detailed error message with guidance
+				storedHash, _ := readCommitHashMetadata(objDir)
+				remoteHash, _ := getRemoteCommitFunc(target.Template.Repo, target.Template.Ref)
+
+				return nil, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\n"+
+					"Template: %s@%s\n"+
+					"Cached commit:  %s\n"+
+					"Remote commit:  %s\n\n"+
+					"The cached template may be outdated and could produce incorrect results.\n\n"+
+					"To resolve this issue, choose one of the following options:\n\n"+
+					"1. Enable automatic updates (recommended):\n"+
+					"   Add 'autoUpdateOnChange: true' to your template configuration\n\n"+
+					"2. Force use current cache (one-time):\n"+
+					"   Run with the --force flag: 'duck sync --force' or 'duck exec --force'\n\n"+
+					"3. Clear cache and re-fetch:\n"+
+					"   Run 'duck clean' to remove cached templates\n\n"+
+					"4. Disable commit hash tracking:\n"+
+					"   Set 'trackCommitHash: false' in your configuration\n\n"+
+					"For more information, see: https://github.com/CyberDuck79/duckfile#commit-hash-tracking",
+					target.Template.Repo, target.Template.Ref,
+					truncateHash(storedHash), truncateHash(remoteHash))
+			}
+		}
+	}
+
 	if needRender {
 		if force {
-			logInfo("force re-render")
+			logInfo("🔄 Force rebuilding template: %s@%s", target.Template.Repo, target.Template.Ref)
 		} else {
-			logInfo("cache miss; rendering template")
+			logInfo("📝 Building template: %s@%s", target.Template.Repo, target.Template.Ref)
 		}
 		logDebug("clone %s@%s", target.Template.Repo, target.Template.Ref)
 		// Fetch template repository at the requested ref
@@ -169,6 +223,21 @@ func prepareAndRenderTemplate(targetName string, target config.Target, force boo
 		if err := renderTemplate(src, objFile, target, vars); err != nil {
 			return nil, err
 		}
+
+		// Store commit hash metadata if tracking is enabled
+		if trackCommitHash {
+			logInfo("💾 Storing commit hash for future validation")
+			logDebug("storing commit hash metadata for %s@%s", target.Template.Repo, target.Template.Ref)
+			commitHash, err := getCurrentCommitFunc(repoDir)
+			if err != nil {
+				logWarn("failed to get commit hash for metadata storage: %v", err)
+			} else if err := writeCommitHashMetadata(objDir, commitHash); err != nil {
+				logWarn("failed to write commit hash metadata: %v", err)
+			} else {
+				logDebug("stored commit hash metadata: %s", truncateHash(commitHash))
+			}
+		}
+
 		logInfo("rendered %s -> %s", target.Template.Path, objFile)
 	}
 	if _, err := os.Stat(objFile); err == nil {
@@ -230,7 +299,7 @@ func executeTarget(target config.Target, linkPath string, passthrough []string) 
 // This function uses the shared prepareAndRenderTemplate function for template
 // processing (variable resolution, caching, checksum validation, etc.) and then
 // executes the target's binary with the rendered template.
-func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig) error {
+func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
 	// Determine the effective target key
 	key, t, err := searchTarget(cfg, targetName)
 	if err != nil {
@@ -245,7 +314,7 @@ func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securit
 	}
 
 	// Prepare template (shared logic with Sync)
-	result, err := prepareAndRenderTemplate(key, t, false, securityCfg)
+	result, err := prepareAndRenderTemplate(key, t, cfg, false, securityCfg, trackCommitHashFlag, autoUpdateOnChangeFlag)
 	if err != nil {
 		return err
 	}
@@ -336,8 +405,8 @@ func resolveVariables(in map[string]config.VarValue) (map[string]any, error) {
 	return out, nil
 }
 
-// computeCacheKey builds a stable SHA1 over repo/ref/path and resolved vars.
-func computeCacheKey(repo, ref, path string, vars map[string]any) (string, error) {
+// computeCacheKey builds a stable SHA1 over repo/ref/path, resolved vars, and commit tracking settings.
+func computeCacheKey(repo, ref, path string, vars map[string]any, trackCommitHash bool) (string, error) {
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
 		keys = append(keys, k)
@@ -352,10 +421,11 @@ func computeCacheKey(repo, ref, path string, vars map[string]any) (string, error
 		pairs = append(pairs, kv{K: k, V: vars[k]})
 	}
 	payload := map[string]any{
-		"repo": repo,
-		"ref":  ref,
-		"path": path,
-		"vars": pairs,
+		"repo":            repo,
+		"ref":             ref,
+		"path":            path,
+		"vars":            pairs,
+		"trackCommitHash": trackCommitHash,
 	}
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -363,6 +433,91 @@ func computeCacheKey(repo, ref, path string, vars map[string]any) (string, error
 	}
 	sum := sha1.Sum(b)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// writeCommitHashMetadata stores the commit hash in the cache directory
+func writeCommitHashMetadata(objDir, commitHash string) error {
+	if commitHash == "" {
+		return nil // Nothing to write
+	}
+
+	metadataFile := filepath.Join(objDir, "commit.hash")
+	return os.WriteFile(metadataFile, []byte(commitHash), 0o644)
+}
+
+// readCommitHashMetadata reads the commit hash from the cache directory
+func readCommitHashMetadata(objDir string) (string, error) {
+	metadataFile := filepath.Join(objDir, "commit.hash")
+
+	data, err := os.ReadFile(metadataFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil // No metadata file exists
+		}
+		return "", fmt.Errorf("failed to read commit hash metadata: %w", err)
+	}
+
+	commitHash := strings.TrimSpace(string(data))
+	return commitHash, nil
+}
+
+// hasCommitHashMetadata checks if commit hash metadata exists in the cache directory
+func hasCommitHashMetadata(objDir string) bool {
+	metadataFile := filepath.Join(objDir, "commit.hash")
+	_, err := os.Stat(metadataFile)
+	return err == nil
+}
+
+// validateCachedCommitHash checks if the cached commit hash is still valid by comparing with remote.
+// Returns true if cache is valid, false if it should be invalidated, and an error for network issues.
+func validateCachedCommitHash(repo, ref, objDir string) (bool, error) {
+	// Read stored commit hash
+	storedHash, err := readCommitHashMetadata(objDir)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cached commit hash: %w", err)
+	}
+
+	if storedHash == "" {
+		// No stored hash means cache was created without commit tracking
+		logDebug("no stored commit hash found for %s@%s, cache validation skipped", repo, ref)
+		return true, nil
+	}
+
+	logDebug("validating cached commit hash %s for %s@%s", truncateHash(storedHash), repo, ref)
+
+	// Get current remote commit hash
+	remoteHash, err := getRemoteCommitFunc(repo, ref)
+	if err != nil {
+		// Network failure or repository error - warn but don't fail
+		logWarn("failed to fetch remote commit hash for %s@%s validation: %v", repo, ref, err)
+		logWarn("continuing with cached template (network error)")
+		return true, nil
+	}
+
+	if storedHash == remoteHash {
+		logDebug("✅ commit hash unchanged for %s@%s: %s", repo, ref, truncateHash(storedHash))
+		return true, nil
+	}
+
+	logInfo("🔄 commit hash changed for %s@%s: %s -> %s", repo, ref, truncateHash(storedHash), truncateHash(remoteHash))
+	return false, nil
+}
+
+// invalidateCache removes the cached object to force re-rendering
+func invalidateCache(objDir string) error {
+	if err := os.RemoveAll(objDir); err != nil {
+		return fmt.Errorf("failed to invalidate cache directory %s: %w", objDir, err)
+	}
+	logInfo("cache invalidated: %s", objDir)
+	return nil
+}
+
+// truncateHash returns a shortened version of a commit hash for display purposes
+func truncateHash(hash string) string {
+	if len(hash) <= 12 {
+		return hash
+	}
+	return hash[:12]
 }
 
 func ensureSymlink(target, link string) error {
@@ -405,13 +560,13 @@ func ensureSymlink(target, link string) error {
 //
 // This function now shares the same template preparation logic as Exec,
 // including checksum validation, through the prepareAndRenderTemplate function.
-func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *config.SecurityConfig) error {
+func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
 	targets, err := collectTargets(cfg, targetName)
 	if err != nil {
 		return err
 	}
 	for name, t := range targets {
-		if _, err := prepareAndRenderTemplate(name, t, force, securityCfg); err != nil {
+		if _, err := prepareAndRenderTemplate(name, t, cfg, force, securityCfg, trackCommitHashFlag, autoUpdateOnChangeFlag); err != nil {
 			return err
 		}
 	}
