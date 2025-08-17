@@ -21,65 +21,50 @@ var Version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "duck [target] -- [target_args...]",
-	Short: "Duckfiles – remote-templating wrapper",
-	Long: `Duckfiles – remote-templating wrapper
+	Short: "Universal remote templating for DevOps tools",
+	Long: `Duck fetches, renders, and executes remote Git templates with deterministic caching.
 
-Duck fetches, renders, and executes remote Git templates with deterministic caching.
-Templates are rendered with Go's text/template engine and Sprig functions.
+USAGE
+  duck [target] [flags]                 Execute target (or default if none specified)
+  duck [target] -- [args...] [flags]   Execute target and pass args to underlying tool
+  duck [command] [flags]                Run a specific command
 
-USAGE:
-  duck [target]          Execute the specified target (or default if not provided)
-  duck [target] -- args  Execute target and pass args to the underlying binary
-  duck sync [target]     Sync templates to cache without executing
-  duck list              List available targets with descriptions
-  duck clean [target]    Clean cached objects and working directories
-  duck init              Interactive setup wizard
-  duck add               Interactive add target
+COMMANDS
+  add         Add a new target to existing duck.yaml
+  clean       Purge cached objects and per-target directories  
+  init        Interactive wizard to create a duck.yaml
+  list        List targets defined in duck.yaml
+  sync        Sync templates into cache without executing
+  version     Print duck version
+  help        Help about any command
 
-LOGGING:
-Log level can be configured via CLI flag, environment variable, or config file.
-Precedence: CLI flag > DUCK_LOG_LEVEL env var > settings.logLevel > default (info)
+FLAGS
+  -h, --help                     Show help for duck
+  --log-level string             Log level: error, warn, info, debug
+  --track-commit-hash            Enable commit hash validation
+  --no-track-commit-hash         Disable commit hash validation
+  --auto-update-on-change        Auto-update when commit hash changes
+  --no-auto-update-on-change     Disable auto-update on commit changes
+  --allowed-hosts strings        Comma-separated allowed Git hosts
+  --denied-hosts strings         Comma-separated denied Git hosts
+  --strict-hosts                 Fail if no host restrictions configured
 
-CLI Flags:
-  --log-level=debug       # Set log level (error, warn, info, debug)
+ENVIRONMENT VARIABLES
+  DUCK_LOG_LEVEL                 Default log level
+  DUCK_TRACK_COMMIT_HASH         Enable commit hash tracking (true/false)
+  DUCK_AUTO_UPDATE_ON_CHANGE     Enable auto-update behavior (true/false)
+  DUCK_ALLOWED_HOSTS             Comma-separated allowed hosts
+  DUCK_DENIED_HOSTS              Comma-separated denied hosts
+  DUCK_STRICT_MODE               Enable strict host validation (true/false)
 
-COMMIT HASH VALIDATION:
-Commit hash tracking can be configured via CLI flag, environment variable, or config file.
-Precedence: CLI flag > env var > template config > global settings > default (false)
+EXAMPLES
+  duck                           Execute default target
+  duck build                     Execute 'build' target
+  duck test -- --verbose         Execute 'test' with args
+  duck sync                      Sync all templates
+  duck --log-level=debug build   Execute with debug logging
 
-CLI Flags (mutually exclusive):
-  --track-commit-hash / --no-track-commit-hash         # Enable/disable commit hash tracking
-  --auto-update-on-change / --no-auto-update-on-change # Enable/disable auto-update behavior
-
-Environment Variables:
-  DUCK_LOG_LEVEL="info"                # Set default log level
-  DUCK_TRACK_COMMIT_HASH="true"       # Enable commit hash tracking globally
-  DUCK_AUTO_UPDATE_ON_CHANGE="false"  # Control auto-update behavior globally
-
-SECURITY:
-Host allow/deny lists can be configured via environment variables or CLI flags
-to prevent supply-chain attacks. These restrictions are kept separate from
-duck.yaml to prevent attackers from modifying both targets and security policies.
-
-Environment Variables:
-  DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"  # Comma-separated allowed hosts
-  DUCK_DENIED_HOSTS="malicious-host.com"               # Comma-separated denied hosts  
-  DUCK_STRICT_MODE="true"                              # Fail if no restrictions configured
-
-CLI Flags (override environment):
-  --allowed-hosts=host1,host2  # Override allowed hosts
-  --denied-hosts=host1,host2   # Override denied hosts
-  --strict-hosts               # Enable strict mode
-
-Examples:
-  duck                                    # Execute default target
-  duck build                              # Execute 'build' target
-  duck test -- --verbose                 # Execute 'test' target with args
-  duck sync                               # Sync all templates to cache
-  duck --allowed-hosts=github.com build   # Only allow GitHub repositories
-  duck --log-level=debug build            # Execute with debug logging
-  duck --track-commit-hash build          # Enable commit hash tracking
-  duck --no-auto-update-on-change build   # Disable auto-update on commit changes`,
+Use "duck [command] --help" for more information about a command.`,
 	SilenceUsage:       true,
 	SilenceErrors:      true,
 	DisableFlagParsing: true, // Disable to handle custom parsing with -- separator
@@ -189,6 +174,9 @@ Examples:
 
 func init() {
 	rootCmd.Version = Version
+	// Set custom help template only for root command
+	rootCmd.SetHelpTemplate(`{{.Long}}
+`)
 }
 
 func main() {

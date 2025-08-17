@@ -26,8 +26,25 @@ func init() {
 	syncCmd := &cobra.Command{
 		Use:   "sync [target]",
 		Short: "Sync templates into cache without executing",
-		Long:  "Sync templates into the deterministic cache (.duck/objects) and update symlinks. Provide an optional target to sync only that target. Use -f/--force to re-render ignoring existing cache.\n\nLogging: Use --log-level to control verbosity (error, warn, info, debug).\n\nCommit Hash Validation: Use --track-commit-hash/--no-track-commit-hash and --auto-update-on-change/--no-auto-update-on-change flags to control commit hash tracking behavior, or set DUCK_TRACK_COMMIT_HASH and DUCK_AUTO_UPDATE_ON_CHANGE environment variables.\n\nSecurity: Use --allowed-hosts, --denied-hosts, or --strict-hosts flags to restrict which Git hosts can be accessed, or set DUCK_ALLOWED_HOSTS, DUCK_DENIED_HOSTS, DUCK_STRICT_MODE environment variables.",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Sync templates into the deterministic cache (.duck/objects) and update symlinks.
+
+USAGE
+  duck sync              Sync all targets
+  duck sync [target]     Sync only the specified target
+
+FLAGS
+  -f, --force            Re-render templates ignoring existing cache
+  --log-level string     Log level: error, warn, info, debug
+  --track-commit-hash    Enable commit hash validation  
+  --no-track-commit-hash Disable commit hash validation
+  --auto-update-on-change     Auto-update when commit hash changes
+  --no-auto-update-on-change  Disable auto-update on commit changes
+  --allowed-hosts strings     Comma-separated allowed Git hosts
+  --denied-hosts strings      Comma-separated denied Git hosts
+  --strict-hosts              Fail if no host restrictions configured
+
+Use environment variables DUCK_* to set defaults for configuration options.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
