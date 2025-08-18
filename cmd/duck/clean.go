@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"github.com/CyberDuck79/duckfile/internal/run"
 	"github.com/spf13/cobra"
 )
@@ -39,11 +40,11 @@ and rendering on the next sync or execution.`,
 
 			// Resolve and set log level
 			logLevelStr := config.ResolveLogLevel(cleanLogLevel, cfg)
-			effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+			effectiveLogLevel, err := log.ParseLevel(logLevelStr)
 			if err != nil {
 				return fmt.Errorf("invalid log level: %w", err)
 			}
-			run.SetLogLevel(effectiveLogLevel)
+			log.SetLevel(effectiveLogLevel)
 
 			return run.Clean(cfg, target)
 		},

@@ -16,6 +16,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 ## Features
 - Git-sourced templates: repo + ref + path
 - Variable tags: !env, !cmd, !file, and literals
+- **Automatic .env file loading** for environment variable management
 - Target descriptions + `duck list` for discoverability
 - Go templates with Sprig functions
 - Custom delimiters to avoid collisions (e.g., Taskfile)
@@ -322,7 +323,38 @@ settings:
   logLevel: info
 ```
 
+## Environment variable management with .env files
+
+Duckfile automatically loads environment variables from `.env` files to streamline configuration management:
+
+**Create a `.env` file:**
+```bash
+# Project defaults
+PROJECT_NAME=myapp
+GO_VERSION=1.21
+DOCKER_REGISTRY=ghcr.io/myorg
+DEBUG=true
+```
+
+**Use in duck.yaml:**
+```yaml
+targets:
+  build:
+    variables:
+      PROJECT: !env PROJECT_NAME      # Uses value from .env
+      GO_VERSION: !env GO_VERSION     # Uses value from .env
+      REGISTRY: !env DOCKER_REGISTRY  # Uses value from .env
+```
+
+**File discovery order:**
+1. `.env` (current directory) - highest priority
+2. `.duck/.env` (duck cache directory)  
+3. `.env.duck` (duck-specific variant) - lowest priority
+
+**Precedence:** CLI environment variables > .env file > defaults
+
 ## How it works (MVP)
+- **Load .env files** automatically before any operation
 - Resolve variables:
   - !env NAME → os.Getenv(NAME)
   - !cmd SHELL → /bin/sh -c SHELL (trimmed)

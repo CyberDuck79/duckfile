@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"github.com/CyberDuck79/duckfile/internal/run"
 	"github.com/spf13/cobra"
 )
@@ -58,11 +59,11 @@ Use environment variables DUCK_* to set defaults for configuration options.`,
 
 			// Resolve and set log level
 			logLevelStr := config.ResolveLogLevel(syncLogLevel, cfg)
-			effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+			effectiveLogLevel, err := log.ParseLevel(logLevelStr)
 			if err != nil {
 				return fmt.Errorf("invalid log level: %w", err)
 			}
-			run.SetLogLevel(effectiveLogLevel)
+			log.SetLevel(effectiveLogLevel)
 
 			// Build security configuration from flags (CLI flags override environment)
 			securityCfg := config.BuildSecurityConfig(syncAllowedHosts, syncDeniedHosts, syncStrictMode)
