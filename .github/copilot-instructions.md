@@ -15,6 +15,7 @@ When working with Git, please follow these guidelines:
 - Write clear and concise commit messages that accurately describe the changes made.
 - The commit message should respect the conventional commit format, it is used to automate versioning and changelog generation.
 - Use github cli for managing pull requests and issues.
+- Big commands do not work with copilot, use temporary files instead for commit messages and pull requests descriptions.
 - Use feature branches for new features or bug fixes, and merge them into the main branch via pull requests.
 - Ensure that your code passes all tests before submitting a pull request.
 - Rebase your branch onto the latest version of the main branch before merging.
