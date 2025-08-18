@@ -19,6 +19,9 @@ var runExec = func(cfg *config.DuckConf, targetName string, passthrough []string
 // Defaults to "dev" when not set.
 var Version = "dev"
 
+// Global variable to store config file path from --config flag
+var configPath string
+
 var rootCmd = &cobra.Command{
 	Use:   "duck [target] -- [target_args...]",
 	Short: "Universal remote templating for DevOps tools",
@@ -40,6 +43,7 @@ COMMANDS
 
 FLAGS
   -h, --help                     Show help for duck
+  -c, --config string            Path to duck config file (default: auto-discover)
   --log-level string             Log level: error, warn, info, debug
   --track-commit-hash            Enable commit hash validation
   --no-track-commit-hash         Disable commit hash validation
@@ -50,6 +54,7 @@ FLAGS
   --strict-hosts                 Fail if no host restrictions configured
 
 ENVIRONMENT VARIABLES
+  DUCK_CONFIG                    Path to config file (overrides auto-discovery)
   DUCK_LOG_LEVEL                 Default log level
   DUCK_TRACK_COMMIT_HASH         Enable commit hash tracking (true/false)
   DUCK_AUTO_UPDATE_ON_CHANGE     Enable auto-update behavior (true/false)
@@ -59,7 +64,8 @@ ENVIRONMENT VARIABLES
 
 EXAMPLES
   duck                           Execute default target
-  duck build                     Execute 'build' target
+  duck build                     Execute 'build' target  
+  duck --config prod.yaml build  Use custom config file
   duck test -- --verbose         Execute 'test' with args
   duck sync                      Sync all templates
   duck --log-level=debug build   Execute with debug logging
@@ -102,6 +108,14 @@ Use "duck [command] --help" for more information about a command.`,
 		for i := 0; i < len(duckArgs); i++ {
 			arg := duckArgs[i]
 			switch {
+			case strings.HasPrefix(arg, "--config="):
+				configPath = arg[len("--config="):]
+			case arg == "--config" && i+1 < len(duckArgs):
+				configPath = duckArgs[i+1]
+				i++ // skip next arg
+			case arg == "-c" && i+1 < len(duckArgs):
+				configPath = duckArgs[i+1]
+				i++ // skip next arg
 			case strings.HasPrefix(arg, "--log-level="):
 				logLevel = arg[len("--log-level="):]
 			case arg == "--log-level" && i+1 < len(duckArgs):
@@ -174,6 +188,11 @@ Use "duck [command] --help" for more information about a command.`,
 
 func init() {
 	rootCmd.Version = Version
+
+	// Add persistent flag available to all subcommands
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "",
+		"Path to duck config file (default: auto-discover duck.yaml, duck.yml, .duck.yaml, .duck.yml)")
+
 	// Set custom help template only for root command
 	rootCmd.SetHelpTemplate(`{{.Long}}
 `)
@@ -187,18 +206,43 @@ func main() {
 }
 
 func loadConfig() (*config.DuckConf, error) {
-	// detect config file
-	configFiles := []string{"duck.yaml", "duck.yml", ".duck.yaml", ".duck.yml"}
 	var cfgFile string
-	for _, f := range configFiles {
-		if _, err := os.Stat(f); err == nil {
-			cfgFile = f
-			break
+
+	// Priority 1: --config flag (highest precedence)
+	if configPath != "" {
+		cfgFile = configPath
+		// Validate file exists when explicitly specified
+		if _, err := os.Stat(cfgFile); err != nil {
+			return nil, fmt.Errorf("config file %q not found: %w", cfgFile, err)
+		}
+	} else {
+		// Priority 2: DUCK_CONFIG environment variable
+		if envConfigPath := os.Getenv("DUCK_CONFIG"); envConfigPath != "" {
+			cfgFile = envConfigPath
+			// Validate file exists when explicitly specified
+			if _, err := os.Stat(cfgFile); err != nil {
+				return nil, fmt.Errorf("config file from DUCK_CONFIG %q not found: %w", cfgFile, err)
+			}
+		} else {
+			// Priority 3: Auto-discovery (lowest precedence)
+			configFiles := []string{"duck.yaml", "duck.yml", ".duck.yaml", ".duck.yml"}
+			for _, f := range configFiles {
+				if _, err := os.Stat(f); err == nil {
+					cfgFile = f
+					break
+				}
+			}
+			if cfgFile == "" {
+				return nil, fmt.Errorf("no config file found (tried: %v). Use --config to specify a custom path", configFiles)
+			}
 		}
 	}
-	if cfgFile == "" {
-		return nil, fmt.Errorf("no config file found (tried: %v)", configFiles)
+
+	// Load config from the determined file path
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config from %q: %w", cfgFile, err)
 	}
-	// load config
-	return config.Load(cfgFile)
+
+	return cfg, nil
 }
