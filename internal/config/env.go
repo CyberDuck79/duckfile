@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/CyberDuck79/duckfile/internal/log"
 )
 
 // findEnvFile searches for .env files in the following priority order:
@@ -43,7 +45,11 @@ func LoadEnvFile(path string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open .env file %s: %w", path, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Warnf("failed to close .env file %s: %v", path, closeErr)
+		}
+	}()
 
 	count := 0
 	scanner := bufio.NewScanner(file)
