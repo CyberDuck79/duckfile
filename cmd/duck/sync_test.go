@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,5 +184,73 @@ func TestCLISyncNoBinaryTarget(t *testing.T) {
 	link := filepath.Join(dir, ".duck", "nobin", "nobin")
 	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
 		t.Fatalf("expected symlink for nobin target")
+	}
+}
+
+// TestSyncWithConfigFlag verifies that the --config flag works with the sync command
+func TestSyncWithConfigFlag(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a custom config file
+	customConfig := `version: 1
+default: custom
+
+targets:
+  custom:
+    description: custom target
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: repoCustom
+      ref: main
+      path: custom.tpl
+    variables: {}
+`
+	if err := os.WriteFile(filepath.Join(dir, "custom.yaml"), []byte(customConfig), 0o644); err != nil {
+		t.Fatalf("write custom config: %v", err)
+	}
+
+	// Provide clone stub that creates custom.tpl
+	saved := getCloneFunc()
+	setCloneFunc(func(repo, ref, intoDir string) (string, error) {
+		repoDir := filepath.Join(intoDir, "repo")
+		if err := os.MkdirAll(repoDir, 0o755); err != nil {
+			return "", err
+		}
+		// Create the custom.tpl file that the config expects
+		p := filepath.Join(repoDir, "custom.tpl")
+		os.WriteFile(p, []byte("CUSTOM_CONTENT\n"), 0o644)
+		return repoDir, nil
+	})
+	t.Cleanup(func() { setCloneFunc(saved) })
+
+	// Change to test directory
+	old, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(old)
+
+	// Reset global state
+	configPath = ""
+
+	// Run sync with --config flag
+	rootCmd.SetArgs([]string{"sync", "--config", "custom.yaml"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("sync with --config failed: %v", err)
+	}
+
+	// Verify the custom target was synced
+	link := filepath.Join(dir, ".duck", "custom", "custom")
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected symlink for custom target at %s", link)
+	}
+
+	// Verify content
+	obj := getSymlinkTarget(t, link)
+	content, err := os.ReadFile(obj)
+	if err != nil {
+		t.Fatalf("failed to read object file: %v", err)
+	}
+	if !strings.Contains(string(content), "CUSTOM_CONTENT") {
+		t.Fatalf("expected CUSTOM_CONTENT in object file, got: %s", string(content))
 	}
 }

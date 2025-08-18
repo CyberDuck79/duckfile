@@ -252,6 +252,45 @@ duck build --no-track-commit-hash
 - **Network resilience**: Network failures during validation result in warnings, not errors
 - **Fast feedback**: Remote checking happens before expensive git operations
 
+## Configuration File Discovery
+
+Duck automatically discovers your configuration file or you can specify a custom path using the `--config` flag or `DUCK_CONFIG` environment variable.
+
+**Discovery Precedence** (highest to lowest):
+1. **CLI flag**: `--config custom.yaml` or `-c custom.yaml`
+2. **Environment variable**: `DUCK_CONFIG=custom.yaml`
+3. **Auto-discovery**: `duck.yaml`, `duck.yml`, `.duck.yaml`, `.duck.yml`
+
+**Examples:**
+```sh
+# Use custom config file (highest precedence)
+duck --config prod.yaml build
+duck -c staging.yaml deploy
+
+# Use environment variable
+export DUCK_CONFIG="configs/dev.yaml"
+duck build
+duck sync
+
+# Auto-discovery (default behavior)
+duck build  # Uses duck.yaml, duck.yml, .duck.yaml, or .duck.yml
+
+# Multi-environment workflows
+duck --config configs/dev.yaml sync
+duck --config configs/staging.yaml deploy --dry-run
+duck --config configs/prod.yaml deploy
+
+# CI/CD integration
+DUCK_CONFIG="ci/pipeline.yaml" duck test
+DUCK_CONFIG="ci/deploy.yaml" duck deploy
+```
+
+**Use Cases:**
+- **Environment-specific configs**: Separate files for dev/staging/prod
+- **Team customization**: Personal config variants
+- **CI/CD pipelines**: Different configs per build stage
+- **Multi-project support**: Multiple duck files in the same workspace
+
 ## Logging Configuration
 
 Control verbosity with log levels, configured via CLI flag, environment variable, or config file.
