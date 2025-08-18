@@ -206,6 +206,12 @@ func main() {
 }
 
 func loadConfig() (*config.DuckConf, error) {
+	// Load .env file first (before any config loading)
+	// This allows .env variables to be used in config resolution
+	if err := config.LoadEnvFileIfExistsSilent(); err != nil {
+		return nil, fmt.Errorf("environment setup failed: %w", err)
+	}
+
 	var cfgFile string
 
 	// Priority 1: --config flag (highest precedence)

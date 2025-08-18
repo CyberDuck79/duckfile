@@ -73,6 +73,109 @@ Notes:
 | `trackCommitHash` | Boolean | `false` | Global default for commit hash tracking. Can be overridden per-template and by CLI flags. |
 | `autoUpdateOnChange` | Boolean | `false` | Global default for auto-update behavior. Can be overridden per-template and by CLI flags. |
 
+## 7. Environment Variables (.env file support)
+
+Duckfile automatically loads environment variables from `.env` files to streamline environment management for both templating and execution contexts.
+
+### File Discovery
+
+Duckfile searches for `.env` files in the following priority order:
+1. `.env` (current directory) - **highest priority**
+2. `.duck/.env` (duck cache directory)
+3. `.env.duck` (duck-specific variant) - **lowest priority**
+
+The first file found is loaded. If multiple files exist, only the highest priority file is used.
+
+### File Format
+
+The `.env` file uses a simple `KEY=VALUE` format:
+
+```bash
+# Project configuration
+PROJECT_NAME=myapp
+VERSION=1.0.0
+ENVIRONMENT=development
+
+# Quoted values (optional)
+DATABASE_URL="postgres://localhost:5432/myapp"
+API_KEY='secret-key-value'
+
+# Values with spaces
+DESCRIPTION=My application description
+
+# Empty values
+DEBUG_MODE=
+
+# Comments and empty lines are ignored
+# This is a comment
+```
+
+### Environment Variable Precedence
+
+Environment variables follow this precedence order (highest to lowest):
+1. **Existing OS environment variables** (command line exports, shell environment)
+2. **Variables from .env file**
+3. **Default values** (if any)
+
+This ensures that explicitly set environment variables always override `.env` file values, making the system predictable and secure.
+
+### Loading Behavior
+
+- **.env files are loaded automatically** before any duck command execution
+- **Silent loading**: No output is shown when .env files are loaded (to avoid noise)
+- **Error handling**: Malformed .env files cause the command to fail with clear error messages
+- **Optional**: Not having a .env file is perfectly fine and not an error
+
+### Integration with Variable Resolution
+
+Variables loaded from .env files are available for use with `!env` variable tags:
+
+**`.env` file:**
+```bash
+GO_VERSION=1.21
+DOCKER_REGISTRY=ghcr.io/myorg
+BUILD_TAG=latest
+```
+
+**`duck.yaml` configuration:**
+```yaml
+targets:
+  build:
+    template:
+      repo: https://github.com/org/templates.git
+      path: Dockerfile.tpl
+    variables:
+      GO_VERSION: !env GO_VERSION        # Uses value from .env
+      REGISTRY: !env DOCKER_REGISTRY     # Uses value from .env
+      TAG: !env BUILD_TAG                # Uses value from .env
+```
+
+### Example Workflow
+
+1. **Development setup**: Create `.env` with development defaults
+2. **Team sharing**: Commit `.env.example` with template values
+3. **Local customization**: Copy `.env.example` to `.env` and customize
+4. **CI/CD override**: Set critical variables via CI environment, others use .env defaults
+
+**Example `.env.example` (committed to Git):**
+```bash
+# Copy to .env and customize for your environment
+PROJECT_NAME=myapp
+GO_VERSION=1.21
+ENVIRONMENT=development
+# API_KEY=your-api-key-here
+# DATABASE_URL=your-database-url
+```
+
+**Example `.env` (gitignored, local only):**
+```bash
+PROJECT_NAME=myapp
+GO_VERSION=1.21
+ENVIRONMENT=john-dev
+API_KEY=john-dev-12345
+DATABASE_URL=postgres://localhost:5432/myapp_john
+```
+
 **Security Configuration (Host Allow/Deny Lists)**
 
 For supply-chain security, Duckfile supports restricting which Git hosts can be accessed for templates. **These restrictions must be configured outside of the `duck.yaml` file** to prevent attackers from modifying both the target repositories and the security policy in the same commit.
@@ -114,7 +217,7 @@ For supply-chain security, Duckfile supports restricting which Git hosts can be 
 - **Exact matching**: Currently supports exact hostname matching (wildcards planned for future)
 - **Validation timing**: Host validation occurs before git operations, providing fast feedback
 
-## 7. Commit Hash Tracking and Validation
+## 8. Commit Hash Tracking and Validation
 
 Duckfile supports tracking and validating commit hashes to detect when remote templates have changed. This feature helps ensure reproducible builds and provides early warning when templates are updated.
 
@@ -215,13 +318,25 @@ duck sync --no-track-commit-hash
 - SSH (SCP-style): `git@github.com:user/repo.git`  
 - SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
 
-## 8. Deterministic cache (informative)
+## 9. Deterministic cache (informative)
 Key = `SHA1(repo + ref + path + resolvedVariablesJSON + commitHashTracking)`.  
 When commit hash tracking is enabled, the actual resolved commit hash is included in the cache key computation to ensure cache invalidation when commits change.  
 Stored at `.duck/objects/<key>/<basename>`.  
 A symlink is created at `renderedPath` (or `.duck/<target>/<basename>`) pointing to the object.
 
-## 9. Example config
+## 10. Example config
+
+**Example `.env` file:**
+```bash
+# Development environment variables
+PROJECT_NAME=my-service
+GO_VERSION=1.21
+DOCKER_REGISTRY=ghcr.io/myorg
+BUILD_DATE=2025-08-18
+DEBUG=true
+```
+
+**Example `duck.yaml` configuration:**
 ```yaml
 version: 1
 
@@ -273,7 +388,7 @@ settings:
   autoUpdateOnChange: false
 ```
 
-## 10. CLI subcommands
+## 11. CLI subcommands
 
 - `duck sync [target] [-f]`: render into cache and update symlinks without executing the tool. With `-f/--force`, ignore cache and re-render. If no target is provided, syncs all (default + named) targets.
   - `--track-commit-hash` / `--no-track-commit-hash`: Override commit hash tracking setting
@@ -285,7 +400,7 @@ settings:
 
 When a target lacks `binary`, `duck` will refuse to execute it with the root command. Use `duck sync` and `duck clean` instead.
 
-## 11. Checksum validation and warnings
+## 12. Checksum validation and warnings
 
 When a template config includes a `checksum` property, Duckfile will validate the fetched template file against the provided SHA-256 checksum. If the checksum does not match, Duckfile will abort and print an error message showing the expected and actual checksum.
 
@@ -293,7 +408,7 @@ If the template config changes (`repo`, `ref`, or `path`) but the `checksum` rem
 
 Checksum validation is optional. If no checksum is provided, Duckfile will proceed without validation.
 
-## 12. JSON-Schema (v7) excerpt
+## 13. JSON-Schema (v7) excerpt
 ```json
 {
   "definitions": {
@@ -378,6 +493,6 @@ Checksum validation is optional. If no checksum is provided, Duckfile will proce
 }
 ```
 
-## 13. Migration rules
+## 14. Migration rules
 Future changes will be announced with a version bump; for MVP users, no migration is required.
 
