@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
-	"github.com/CyberDuck79/duckfile/internal/run"
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -42,11 +42,11 @@ EXAMPLES
 
 			// Resolve and set log level
 			logLevelStr := config.ResolveLogLevel(listLogLevel, cfg)
-			effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+			effectiveLogLevel, err := log.ParseLevel(logLevelStr)
 			if err != nil {
 				return fmt.Errorf("invalid log level: %w", err)
 			}
-			run.SetLogLevel(effectiveLogLevel)
+			log.SetLevel(effectiveLogLevel)
 
 			fmt.Printf("%-12s %-12s %-s\n", "TARGET", "BINARY", "DESCRIPTION")
 			printTarget := func(key string, t config.Target) {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"github.com/CyberDuck79/duckfile/internal/run"
 	"github.com/spf13/cobra"
 )
@@ -167,11 +168,11 @@ Use "duck [command] --help" for more information about a command.`,
 
 		// 2. Resolve and set log level
 		logLevelStr := config.ResolveLogLevel(logLevel, cfg)
-		effectiveLogLevel, err := run.ParseLogLevel(logLevelStr)
+		effectiveLogLevel, err := log.ParseLevel(logLevelStr)
 		if err != nil {
 			return fmt.Errorf("invalid log level: %w", err)
 		}
-		run.SetLogLevel(effectiveLogLevel)
+		log.SetLevel(effectiveLogLevel)
 
 		// 3. If no target or explicit legacy "default", translate to configured default key
 		if target == "" || target == "default" {
@@ -208,7 +209,7 @@ func main() {
 func loadConfig() (*config.DuckConf, error) {
 	// Load .env file first (before any config loading)
 	// This allows .env variables to be used in config resolution
-	if err := config.LoadEnvFileIfExistsSilent(); err != nil {
+	if err := config.LoadEnvFileIfExists(log.Infof); err != nil {
 		return nil, fmt.Errorf("environment setup failed: %w", err)
 	}
 
@@ -244,11 +245,13 @@ func loadConfig() (*config.DuckConf, error) {
 		}
 	}
 
+	log.Debugf("Loading configuration from %s", cfgFile)
 	// Load config from the determined file path
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config from %q: %w", cfgFile, err)
 	}
+	log.Debugf("Successfully loaded configuration with %d targets", len(cfg.Targets))
 
 	return cfg, nil
 }

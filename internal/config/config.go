@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/git"
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -205,17 +206,21 @@ func (c *DuckConf) Save(path string) error {
 }
 
 func Load(path string) (*DuckConf, error) {
+	log.Debugf("Reading configuration file: %s", path)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("Parsing YAML configuration (%d bytes)", len(raw))
 	var cfg DuckConf
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		return nil, err
 	}
+	log.Debugf("Validating configuration")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	log.Debugf("Configuration loaded successfully")
 	return &cfg, nil
 }
 

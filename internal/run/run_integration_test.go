@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
+	"github.com/CyberDuck79/duckfile/internal/log"
 )
 
 // defaultSecurityConfig creates a permissive security config for testing
@@ -164,7 +165,7 @@ func TestChecksumValidation(t *testing.T) {
 	os.Stderr = w
 
 	// set the log level to warning
-	currentLogLevel = LogWarn
+	log.SetLevel(log.Warn)
 
 	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration(), nil, nil); err != nil {
 		os.Stderr = oldStderr
@@ -257,7 +258,7 @@ func TestChecksumValidationSync(t *testing.T) {
 	os.Stderr = w
 
 	// set the log level to warning
-	currentLogLevel = LogWarn
+	log.SetLevel(log.Warn)
 
 	if err := Sync(cfg, "build", false, defaultSecurityConfigIntegration(), nil, nil); err != nil {
 		os.Stderr = oldStderr
