@@ -13,13 +13,13 @@ import (
 // TestComputeCacheKeyOrderIndependence (property test) ensures map iteration order
 // does not affect the produced cache key by supplying the same logical variables
 // in different orders.
-func TestComputeCacheKeyOrderIndependence(t *testing.T) {
+func TestComputeRenderedCacheKeyOrderIndependence(t *testing.T) {
 	varsA := map[string]any{"A": 1, "B": "x"}
 	varsB := map[string]any{"B": "x", "A": 1}
-	k1, _ := computeCacheKey("repo", "main", "p.tpl", varsA, false)
-	k2, _ := computeCacheKey("repo", "main", "p.tpl", varsB, false)
+	k1, _ := computeRenderedCacheKey(varsA)
+	k2, _ := computeRenderedCacheKey(varsB)
 	if k1 != k2 {
-		t.Fatalf("keys differ: %s vs %s", k1, k2)
+		t.Fatalf("rendered keys differ: %s vs %s", k1, k2)
 	}
 }
 
@@ -43,10 +43,9 @@ func TestRenderTemplateDelimsAndAllowMissing(t *testing.T) {
 
 // TestComputeCacheKeyUnsupportedType triggers the JSON marshal error path by
 // supplying a data structure that is not JSON-representable.
-func TestComputeCacheKeyUnsupportedType(t *testing.T) {
+func TestComputeRenderedCacheKeyUnsupportedType(t *testing.T) {
 	ch := make(chan int)
-	_, err := computeCacheKey("repo", "ref", "p.tpl", map[string]any{"CH": ch}, false)
-	if err == nil {
+	if _, err := computeRenderedCacheKey(map[string]any{"CH": ch}); err == nil {
 		t.Fatal("expected marshaling error, got nil")
 	}
 }

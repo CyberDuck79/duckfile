@@ -319,10 +319,44 @@ duck sync --no-track-commit-hash
 - SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
 
 ## 9. Deterministic cache (informative)
-Key = `SHA1(repo + ref + path + resolvedVariablesJSON + commitHashTracking)`.  
-When commit hash tracking is enabled, the actual resolved commit hash is included in the cache key computation to ensure cache invalidation when commits change.  
-Stored at `.duck/objects/<key>/<basename>`.  
-A symlink is created at `renderedPath` (or `.duck/<target>/<basename>`) pointing to the object.
+
+Duckfile now uses a two‑tier cache separating remote template content from rendered output:
+
+1. Remote layer
+   - Key: `remoteKey = SHA1(repo + ref + path)`
+   - Directory: `.duck/objects/remote/<remoteKey>/`
+   - Contents:
+     - Raw template file (`<basename>`)
+     - `commit.hash` (always written on fetch, regardless of tracking flags)
+     - `checksum.sha256` (only when `checksum` is configured)
+   - Invalidation triggers:
+     - Missing directory (first use)
+     - `--force` flag
+     - Commit hash changed AND `trackCommitHash && autoUpdateOnChange`
+     - Checksum mismatch (hard failure)
+
+2. Rendered layer
+   - Key: `renderedKey = SHA1(sorted resolvedVariablesJSON)` (variables only; order independent)
+   - Directory: `.duck/objects/rendered/<renderedKey>/`
+   - Contents:
+     - Rendered file (`<basename>`)
+     - `remote.key` (text file containing the associated `remoteKey`)
+   - Invalidation triggers:
+     - Variables change (new key produced)
+     - `--force` flag (forces re-render even if remote unchanged)
+
+Symlink Resolution:
+- A symlink at `renderedPath` (or `.duck/<target>/<basename>`) points to the current rendered object.
+- Old rendered cache directories for the same target are pruned when a new rendered key is created.
+
+Commit Hash Semantics:
+- The commit hash is always captured on every remote fetch (simplifies enabling tracking later).
+- Tracking controls validation behavior, not metadata capture.
+- If tracking is disabled, the stored `commit.hash` is ignored for fetch decisions (unless a force/other trigger applies).
+
+Rationale:
+- Separating remote and rendered layers prevents unnecessary network fetches when only variables change.
+- Always storing the commit hash enables a user to turn on tracking later without needing an immediate refetch to seed metadata.
 
 ## 10. Example config
 

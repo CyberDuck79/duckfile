@@ -353,21 +353,31 @@ targets:
 
 **Precedence:** CLI environment variables > .env file > defaults
 
-## How it works (MVP)
+## How it works
 - **Load .env files** automatically before any operation
 - Resolve variables:
   - !env NAME → os.Getenv(NAME)
   - !cmd SHELL → /bin/sh -c SHELL (trimmed)
   - !file PATH → file contents
   - literal scalars (string/number/bool)
-- Deterministic caching:
-  - key = SHA1(repo + ref + path + resolvedVarsJSON)
-- if the cache key is new, clone/fetch the template repo at the requested ref.
-- Render the template using Go text/template + Sprig.
-- rendered file stored under .duck/objects/<key>/<basename>
-- a symlink at renderedPath (or .duck/<target>/<basename>) points to the object
-- Execute the tool: binary fileFlag renderedPath [args …]
-- Or use `duck sync` for render-only workflows (no `binary` required)
+- Two‑tier deterministic caching:
+  - Remote layer: key = SHA1(repo + ref + path)
+    - Directory: `.duck/objects/remote/<remoteKey>/`
+    - Contains: raw template file (`<basename>`), `commit.hash` (always written on fetch), optional `checksum.sha256`
+  - Rendered layer: key = SHA1(sorted resolvedVarsJSON)
+    - Directory: `.duck/objects/rendered/<renderedKey>/`
+    - Contains: rendered file (`<basename>`), `remote.key` (points back to remote layer key)
+- Remote fetch happens only when the remote layer is missing, explicitly forced (`-f`), checksum mismatch, or commit hash validation (when tracking enabled) says it changed and auto‑update is on.
+- Variable changes never trigger a remote fetch; they only produce a new rendered layer directory and prune the old one for that target.
+- Commit hash behavior:
+  - The actual commit hash is always captured and stored in `commit.hash` on every remote fetch (even if tracking disabled later).
+  - When `trackCommitHash` is enabled, Duck validates the stored hash against the current remote; if changed:
+    - With `autoUpdateOnChange`: remote layer is refreshed, then re-rendered.
+    - Without auto-update: warning logged; existing remote layer kept.
+- Rendering uses Go `text/template` + Sprig with optional custom delimiters.
+- A stable symlink at `renderedPath` (or `.duck/<target>/<basename>`) points to the current rendered object.
+- Execute the tool: `binary fileFlag renderedPath [args …]` (unless target has no `binary`).
+- Use `duck sync` for render-only workflows (no `binary` required).
 
 ## Templating tips
 - Use Sprig to transform values: {{ .PROJECT | upper }}
