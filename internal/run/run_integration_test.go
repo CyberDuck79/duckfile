@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -668,4 +669,51 @@ func copyDir(src, dst string) error {
 
 		return os.WriteFile(dstPath, data, info.Mode())
 	})
+}
+
+// TestExecArgumentOrdering ensures fileFlag precedes default args and passthrough.
+func TestExecArgumentOrdering(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd execution semantics differ on windows")
+	}
+	tmp := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmp)
+	defer os.Chdir(oldWd)
+	// minimal repo
+	repoDir := filepath.Join(tmp, "repo")
+	os.MkdirAll(repoDir, 0o755)
+	os.WriteFile(filepath.Join(repoDir, "f.tpl"), []byte("hi"), 0o644)
+	origClone := cloneFunc
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+	defer func() { cloneFunc = origClone }()
+	// capture exec invocation by replacing binary with a script that records args
+	logFile := filepath.Join(tmp, "args.log")
+	script := filepath.Join(tmp, "echo")
+	// Write script that prints each argument on its own line for reliable parsing
+	os.WriteFile(script, []byte("#!/bin/sh\n{ printf '%s\\n' \"$0\"; for a in \"$@\"; do printf '%s\\n' \"$a\"; done; } > '"+logFile+"'\n"), 0o755)
+	pathOrig := os.Getenv("PATH")
+	os.Setenv("PATH", tmp+":"+pathOrig)
+	defer os.Setenv("PATH", pathOrig)
+
+	origExec := execCommand
+	execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command(name, args...) }
+	defer func() { execCommand = origExec }()
+
+	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "f.tpl"}, Args: []string{"--verbose"}}}}
+	if err := Exec(cfg, "t", []string{"--extra"}, &config.SecurityConfig{}, nil, nil); err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+	b, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	// Expect lines: [binary -f link --verbose --extra]
+	if len(lines) < 5 {
+		t.Fatalf("unexpected captured lines: %v", lines)
+	}
+	if !strings.HasSuffix(lines[0], "echo") || lines[1] != "-f" || !strings.HasSuffix(lines[2], "f") || lines[3] != "--verbose" || lines[4] != "--extra" {
+		t.Fatalf("unexpected arg order: %v", lines)
+	}
 }

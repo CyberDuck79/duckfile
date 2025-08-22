@@ -64,3 +64,39 @@ func TestRenderTemplateInvalidSyntax(t *testing.T) {
 		t.Fatalf("expected parse template error, got %v", err)
 	}
 }
+
+// TestSearchTargetErrorList ensures unknown target error path is covered.
+func TestSearchTargetErrorList(t *testing.T) {
+	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {}}}
+	if _, _, err := searchTarget(cfg, "nope"); err == nil || !strings.Contains(err.Error(), "unknown target") {
+		// Expect formatted list of available targets in error
+		t.Fatalf("expected unknown target error, got %v", err)
+	}
+}
+
+// TestTruncateHash covers short and long branches.
+func TestTruncateHash(t *testing.T) {
+	short := "abcdef12"
+	if truncateHash(short) != short {
+		t.Fatalf("short hash modified")
+	}
+	long := "1234567890abcdef1234567890abcdef12345678"
+	if got := truncateHash(long); got != long[:12] {
+		t.Fatalf("expected %s got %s", long[:12], got)
+	}
+}
+
+// TestEnsureSymlinkAlreadyCorrect covers early return when symlink already points correctly.
+func TestEnsureSymlinkAlreadyCorrect(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "f.txt")
+	os.WriteFile(file, []byte("x"), 0o644)
+	link := filepath.Join(tmp, "link.txt")
+	if err := ensureSymlink(file, link); err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+	// second call should early-return without error
+	if err := ensureSymlink(file, link); err != nil {
+		t.Fatalf("ensure again: %v", err)
+	}
+}
