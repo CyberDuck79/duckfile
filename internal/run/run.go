@@ -151,7 +151,7 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 			} else {
 				storedHash, _ := readCommitHashMetadata(remoteDir)
 				remoteHash, _ := getRemoteCommitFunc(target.Template.Repo, target.Template.Ref)
-				return nil, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\nTemplate: %s@%s\nCached commit:  %s\nRemote commit:  %s\n\nEnable autoUpdateOnChange or re-run with --force.", target.Template.Repo, target.Template.Ref, truncateHash(storedHash), truncateHash(remoteHash))
+				return nil, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\nTemplate: %s@%s\nCached commit:  %s\nRemote commit:  %s\n\nEnable autoUpdateOnChange or re-run with --force", target.Template.Repo, target.Template.Ref, truncateHash(storedHash), truncateHash(remoteHash))
 			}
 		}
 	}

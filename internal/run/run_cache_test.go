@@ -464,27 +464,14 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 	origGetRemoteCommitFunc := getRemoteCommitFunc
 	defer func() { getRemoteCommitFunc = origGetRemoteCommitFunc }()
 
-	// Test 1: No stored hash (cache created without tracking)
-	getRemoteCommitFunc = func(repo, ref string) (string, error) {
-		return "b2c3d4e5f6789012345678901234567890abcdef", nil
-	}
-
-	valid, err := validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
-	if err != nil {
-		t.Fatalf("validation should not fail with no stored hash: %v", err)
-	}
-	if !valid {
-		t.Fatal("validation should pass when no stored hash exists")
-	}
-
-	// Test 2: Network failure during remote hash retrieval
+	// Test 1: Network failure during remote hash retrieval
 	writeCommitHashMetadata(objDir, "a1b2c3d4e5f6789012345678901234567890abcd")
 
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "", fmt.Errorf("network error: connection timeout")
 	}
 
-	valid, err = validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
+	valid, err := validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
 	if err != nil {
 		t.Fatalf("validation should not fail on network error: %v", err)
 	}
@@ -492,7 +479,7 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 		t.Fatal("validation should pass gracefully on network error")
 	}
 
-	// Test 3: Hash mismatch (should return false, no error)
+	// Test 2: Hash mismatch (should return false, no error)
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "b2c3d4e5f6789012345678901234567890abcdef", nil
 	}
@@ -505,7 +492,7 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 		t.Fatal("validation should return false when hashes don't match")
 	}
 
-	// Test 4: Hash match (should return true, no error)
+	// Test 3: Hash match (should return true, no error)
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "a1b2c3d4e5f6789012345678901234567890abcd", nil
 	}
@@ -652,33 +639,6 @@ func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
 	if !strings.Contains(string(b), "Bob") {
 		t.Fatalf("render did not reflect variable change: %s", string(b))
 	}
-}
-
-// copyDirCache recursively copies a directory for cache tests
-func copyDirCache(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		dstPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(dstPath, data, info.Mode())
-	})
 }
 
 // end

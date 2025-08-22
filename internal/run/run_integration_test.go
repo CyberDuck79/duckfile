@@ -546,7 +546,7 @@ func TestCommitHashTrackingWithoutAutoUpdate(t *testing.T) {
 	expectedPhrases := []string{
 		"template has been updated remotely",
 		"automatic updates are disabled",
-		"Enable autoUpdateOnChange or re-run with --force.",
+		"Enable autoUpdateOnChange or re-run with --force",
 	}
 
 	for _, phrase := range expectedPhrases {

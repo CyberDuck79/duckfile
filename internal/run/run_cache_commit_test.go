@@ -12,8 +12,6 @@ import (
 	"github.com/CyberDuck79/duckfile/internal/config"
 )
 
-// (Removed obsolete TestComputeCacheKeyWithCommitHashTracking: cache key no longer depends on tracking setting.)
-
 // TestCommitHashMetadataOperations tests reading, writing, and checking commit hash metadata.
 func TestCommitHashMetadataOperations(t *testing.T) {
 	tmp := t.TempDir()
@@ -620,12 +618,12 @@ func TestCommitHashValidationWithoutAutoUpdate(t *testing.T) {
 	expectedPhrases := []string{
 		"template has been updated remotely",
 		"automatic updates are disabled",
-		"Enable autoUpdateOnChange or re-run with --force.",
+		"Enable autoUpdateOnChange or re-run with --force",
 	}
 
 	errMsg := err.Error()
 	for _, phrase := range expectedPhrases {
-		if !contains(errMsg, phrase) {
+		if !strings.Contains(errMsg, phrase) {
 			t.Errorf("error message should contain '%s', got: %s", phrase, errMsg)
 		}
 	}
@@ -716,18 +714,4 @@ func TestRemoteCacheInvalidationGC(t *testing.T) {
 	if !strings.Contains(string(data), "v2") {
 		t.Fatalf("rendered output not updated to new template content: %s", string(data))
 	}
-}
-
-// Helper function for string contains check
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (len(substr) == 0 || findSubstring(s, substr))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
