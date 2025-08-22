@@ -13,13 +13,13 @@ import (
 // TestComputeCacheKeyOrderIndependence (property test) ensures map iteration order
 // does not affect the produced cache key by supplying the same logical variables
 // in different orders.
-func TestComputeCacheKeyOrderIndependence(t *testing.T) {
+func TestComputeRenderedCacheKeyOrderIndependence(t *testing.T) {
 	varsA := map[string]any{"A": 1, "B": "x"}
 	varsB := map[string]any{"B": "x", "A": 1}
-	k1, _ := computeCacheKey("repo", "main", "p.tpl", varsA, false)
-	k2, _ := computeCacheKey("repo", "main", "p.tpl", varsB, false)
+	k1, _ := computeRenderedCacheKey(varsA)
+	k2, _ := computeRenderedCacheKey(varsB)
 	if k1 != k2 {
-		t.Fatalf("keys differ: %s vs %s", k1, k2)
+		t.Fatalf("rendered keys differ: %s vs %s", k1, k2)
 	}
 }
 
@@ -43,10 +43,9 @@ func TestRenderTemplateDelimsAndAllowMissing(t *testing.T) {
 
 // TestComputeCacheKeyUnsupportedType triggers the JSON marshal error path by
 // supplying a data structure that is not JSON-representable.
-func TestComputeCacheKeyUnsupportedType(t *testing.T) {
+func TestComputeRenderedCacheKeyUnsupportedType(t *testing.T) {
 	ch := make(chan int)
-	_, err := computeCacheKey("repo", "ref", "p.tpl", map[string]any{"CH": ch}, false)
-	if err == nil {
+	if _, err := computeRenderedCacheKey(map[string]any{"CH": ch}); err == nil {
 		t.Fatal("expected marshaling error, got nil")
 	}
 }
@@ -63,5 +62,41 @@ func TestRenderTemplateInvalidSyntax(t *testing.T) {
 	err := renderTemplate(src, dst, targ, map[string]any{"FOO": "x"})
 	if err == nil || !strings.Contains(err.Error(), "parse template") {
 		t.Fatalf("expected parse template error, got %v", err)
+	}
+}
+
+// TestSearchTargetErrorList ensures unknown target error path is covered.
+func TestSearchTargetErrorList(t *testing.T) {
+	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {}}}
+	if _, _, err := searchTarget(cfg, "nope"); err == nil || !strings.Contains(err.Error(), "unknown target") {
+		// Expect formatted list of available targets in error
+		t.Fatalf("expected unknown target error, got %v", err)
+	}
+}
+
+// TestTruncateHash covers short and long branches.
+func TestTruncateHash(t *testing.T) {
+	short := "abcdef12"
+	if truncateHash(short) != short {
+		t.Fatalf("short hash modified")
+	}
+	long := "1234567890abcdef1234567890abcdef12345678"
+	if got := truncateHash(long); got != long[:12] {
+		t.Fatalf("expected %s got %s", long[:12], got)
+	}
+}
+
+// TestEnsureSymlinkAlreadyCorrect covers early return when symlink already points correctly.
+func TestEnsureSymlinkAlreadyCorrect(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "f.txt")
+	os.WriteFile(file, []byte("x"), 0o644)
+	link := filepath.Join(tmp, "link.txt")
+	if err := ensureSymlink(file, link); err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+	// second call should early-return without error
+	if err := ensureSymlink(file, link); err != nil {
+		t.Fatalf("ensure again: %v", err)
 	}
 }

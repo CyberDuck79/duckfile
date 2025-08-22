@@ -26,12 +26,12 @@ func defaultSecurityConfig() *config.SecurityConfig {
 // helper to list object key dirs
 func listObjectKeys(t *testing.T) []string {
 	t.Helper()
-	base := filepath.Join(".duck", "objects")
+	base := filepath.Join(".duck", "objects", "rendered")
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		return []string{}
 	}
-	out := []string{}
+	var out []string
 	for _, e := range entries {
 		if e.IsDir() {
 			out = append(out, e.Name())
@@ -40,12 +40,13 @@ func listObjectKeys(t *testing.T) []string {
 	return out
 }
 
-// TestSyncVariableChangePrunesOldKey verifies that changing a variable value
-// generates a new cache key and prunes the previous object directory.
+// TestSyncVariableChangePrunesOldKey verifies variable change produces new rendered key while remote reused.
 func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	// source template
 	templateSrc := filepath.Join(tmp, "templateSrc")
@@ -67,7 +68,7 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 	}
 	keys1 := listObjectKeys(t)
 	if len(keys1) != 1 {
-		t.Fatalf("expected 1 key got %v", keys1)
+		t.Fatalf("expected 1 rendered key got %v", keys1)
 	}
 	// change variable => new key
 	cfg.Targets[cfg.Default].Variables["NAME"] = config.NewLiteralVar("two")
@@ -76,10 +77,10 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 	}
 	keys2 := listObjectKeys(t)
 	if len(keys2) != 1 {
-		t.Fatalf("expected 1 key after change got %v", keys2)
+		t.Fatalf("expected 1 rendered key after change got %v", keys2)
 	}
 	if keys1[0] == keys2[0] {
-		t.Fatalf("expected different key after var change")
+		t.Fatalf("expected different rendered key after var change")
 	}
 }
 
@@ -87,8 +88,10 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 // variables and template does not overwrite the existing rendered object.
 func TestSyncIdempotentWithoutForce(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -127,8 +130,10 @@ func TestSyncIdempotentWithoutForce(t *testing.T) {
 // (new content) even when the cache key (inputs) are unchanged.
 func TestSyncForceReRendersSameKey(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -178,8 +183,10 @@ func TestExecMissingBinaryError(t *testing.T) {
 // and asserts Exec surfaces a failure.
 func TestExecUnderlyingBinaryFailure(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -207,8 +214,10 @@ func TestExecUnderlyingBinaryFailure(t *testing.T) {
 // error when AllowMissing is false.
 func TestRenderMissingVariableStrict(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -236,8 +245,10 @@ func TestRenderMissingVariableStrict(t *testing.T) {
 // location is replaced by the correct symlink.
 func TestEnsureSymlinkReplacesFile(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -272,8 +283,10 @@ func TestEnsureSymlinkReplacesFile(t *testing.T) {
 // confirms Sync replaces it with a valid one pointing to a freshly rendered object.
 func TestBrokenSymlinkUpdated(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -312,8 +325,10 @@ func TestBrokenSymlinkUpdated(t *testing.T) {
 // its symlink and object while preserving others.
 func TestCleanRemovesOnlyTargetArtifacts(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 	templateSrc := filepath.Join(tmp, "templateSrc")
 	os.MkdirAll(templateSrc, 0o755)
@@ -354,153 +369,13 @@ func TestCleanRemovesOnlyTargetArtifacts(t *testing.T) {
 	}
 }
 
-// TestCacheInvalidationWithCommitHashTracking tests cache invalidation when commit hash tracking settings change
-func TestCacheInvalidationWithCommitHashTracking(t *testing.T) {
-	tmp := t.TempDir()
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
-	defer os.Chdir(oldWd)
-
-	// Create fake template repo structure
-	templateDir := filepath.Join(tmp, "templateSrc")
-	os.MkdirAll(templateDir, 0o755)
-	os.WriteFile(filepath.Join(templateDir, "file.tpl"), []byte("hello {{ .NAME }}"), 0o644)
-
-	// Mock git dir for commit hash
-	gitDir := filepath.Join(templateDir, ".git")
-	os.MkdirAll(gitDir, 0o755)
-	testCommitHash := "a1b2c3d4e5f6789012345678901234567890abcd"
-	os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)
-	refsDir := filepath.Join(gitDir, "refs", "heads")
-	os.MkdirAll(refsDir, 0o755)
-	os.WriteFile(filepath.Join(refsDir, "main"), []byte(testCommitHash+"\n"), 0o644)
-
-	// Stub cloneFunc to return our test repo
-	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
-		repoDir := filepath.Join(cacheDir, "repo")
-		return repoDir, copyDirCache(templateDir, repoDir)
-	}
-	defer func() { cloneFunc = origClone }()
-
-	// Mock commit hash functions for proper testing
-	origGetCurrentCommitFunc := getCurrentCommitFunc
-	origGetRemoteCommitFunc := getRemoteCommitFunc
-
-	getCurrentCommitFunc = func(workdir string) (string, error) {
-		return testCommitHash, nil
-	}
-	getRemoteCommitFunc = func(repo, ref string) (string, error) {
-		return testCommitHash, nil
-	}
-
-	defer func() {
-		getCurrentCommitFunc = origGetCurrentCommitFunc
-		getRemoteCommitFunc = origGetRemoteCommitFunc
-	}()
-
-	// Create target configuration
-	target := config.Target{
-		Template: config.Template{
-			Repo: "https://github.com/test/repo.git",
-			Ref:  "main",
-			Path: "file.tpl",
-		},
-		Variables: map[string]config.VarValue{
-			"NAME": config.NewLiteralVar("world"),
-		},
-	}
-
-	// Config WITHOUT commit hash tracking
-	cfg1 := &config.DuckConf{
-		Version: 1,
-		Settings: &config.Settings{
-			TrackCommitHash: false,
-		},
-		Targets: map[string]config.Target{
-			"test": target,
-		},
-	}
-
-	// First sync without commit hash tracking
-	if err := Sync(cfg1, "test", false, defaultSecurityConfig(), nil, nil); err != nil {
-		t.Fatalf("first sync failed: %v", err)
-	}
-
-	// Get initial cache key
-	vars1, err := resolveVariables(target.Variables)
-	if err != nil {
-		t.Fatalf("failed to resolve variables: %v", err)
-	}
-	cacheKey1, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars1, false)
-	if err != nil {
-		t.Fatalf("failed to compute cache key 1: %v", err)
-	}
-
-	objDir1 := filepath.Join(".duck", "objects", cacheKey1)
-	if _, err := os.Stat(objDir1); err != nil {
-		t.Fatalf("expected cache directory to exist: %v", err)
-	}
-
-	// Verify no commit hash metadata exists
-	metadataPath1 := filepath.Join(objDir1, "commit.hash")
-	if _, err := os.Stat(metadataPath1); err == nil {
-		t.Fatal("expected no commit hash metadata without tracking")
-	}
-
-	// Config WITH commit hash tracking (same everything else)
-	cfg2 := &config.DuckConf{
-		Version: 1,
-		Settings: &config.Settings{
-			TrackCommitHash: true,
-		},
-		Targets: map[string]config.Target{
-			"test": target,
-		},
-	}
-
-	// Second sync with commit hash tracking - should create new cache
-	if err := Sync(cfg2, "test", false, defaultSecurityConfig(), nil, nil); err != nil {
-		t.Fatalf("second sync failed: %v", err)
-	}
-
-	// Get new cache key (should be different due to commit hash tracking)
-	vars2, err := resolveVariables(target.Variables)
-	if err != nil {
-		t.Fatalf("failed to resolve variables: %v", err)
-	}
-	cacheKey2, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars2, true)
-	if err != nil {
-		t.Fatalf("failed to compute cache key 2: %v", err)
-	}
-
-	if cacheKey1 == cacheKey2 {
-		t.Fatal("expected different cache keys when commit hash tracking changes")
-	}
-
-	objDir2 := filepath.Join(".duck", "objects", cacheKey2)
-	if _, err := os.Stat(objDir2); err != nil {
-		t.Fatalf("expected new cache directory to exist: %v", err)
-	}
-
-	// Verify commit hash metadata exists in new cache
-	metadataPath2 := filepath.Join(objDir2, "commit.hash")
-	if _, err := os.Stat(metadataPath2); err != nil {
-		t.Fatalf("expected commit hash metadata with tracking: %v", err)
-	}
-
-	// Verify both cache directories exist (old cache not cleaned up immediately)
-	// Note: This behavior depends on cache cleanup strategy, so we'll just check the new one exists
-	if _, err := os.Stat(objDir2); err != nil {
-		t.Fatalf("new cache directory should exist: %v", err)
-	}
-}
-
 // TestCommitHashMetadataStorageBasic tests basic commit hash metadata storage and retrieval
 func TestCommitHashMetadataStorageBasic(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 
 	// Create test object directory
@@ -554,83 +429,31 @@ func TestCommitHashMetadataStorageBasic(t *testing.T) {
 	}
 }
 
-// TestCacheKeyComputationWithCommitHashTracking tests that cache keys change when commit hash tracking is enabled/disabled
-func TestCacheKeyComputationWithCommitHashTracking(t *testing.T) {
-	// Test data
-	repo := "https://github.com/test/repo.git"
-	ref := "main"
-	path := "test.tpl"
-	vars := map[string]any{
-		"NAME":    "world",
-		"VERSION": "1.0.0",
-	}
-
-	// Compute cache key without commit hash tracking
-	key1, err := computeCacheKey(repo, ref, path, vars, false)
+// TestRenderedKeyOnlyDependsOnVariables validates rendered key stability & variable sensitivity.
+func TestRenderedKeyOnlyDependsOnVariables(t *testing.T) {
+	vars1 := map[string]any{"A": 1, "B": "x"}
+	vars2 := map[string]any{"A": 1, "B": "y"}
+	key1, err := computeRenderedCacheKey(vars1)
 	if err != nil {
-		t.Fatalf("failed to compute cache key without tracking: %v", err)
+		t.Fatalf("rk1: %v", err)
 	}
-
-	// Compute cache key with commit hash tracking
-	key2, err := computeCacheKey(repo, ref, path, vars, true)
-	if err != nil {
-		t.Fatalf("failed to compute cache key with tracking: %v", err)
+	key1b, _ := computeRenderedCacheKey(vars1)
+	if key1 != key1b {
+		t.Fatalf("rendered key not deterministic")
 	}
-
-	// Keys should be different
+	key2, _ := computeRenderedCacheKey(vars2)
 	if key1 == key2 {
-		t.Fatal("expected different cache keys when commit hash tracking changes")
-	}
-
-	// Keys should be consistent when called multiple times with same parameters
-	key1Again, err := computeCacheKey(repo, ref, path, vars, false)
-	if err != nil {
-		t.Fatalf("failed to recompute cache key without tracking: %v", err)
-	}
-
-	key2Again, err := computeCacheKey(repo, ref, path, vars, true)
-	if err != nil {
-		t.Fatalf("failed to recompute cache key with tracking: %v", err)
-	}
-
-	if key1 != key1Again {
-		t.Fatal("cache key without tracking should be consistent")
-	}
-
-	if key2 != key2Again {
-		t.Fatal("cache key with tracking should be consistent")
-	}
-
-	// Verify keys are valid hex strings
-	if len(key1) != 40 {
-		t.Fatalf("expected 40-character hex key, got %d characters", len(key1))
-	}
-
-	if len(key2) != 40 {
-		t.Fatalf("expected 40-character hex key, got %d characters", len(key2))
-	}
-
-	// Test with different variables
-	vars2 := map[string]any{
-		"NAME":    "universe",
-		"VERSION": "2.0.0",
-	}
-
-	key3, err := computeCacheKey(repo, ref, path, vars2, false)
-	if err != nil {
-		t.Fatalf("failed to compute cache key with different vars: %v", err)
-	}
-
-	if key1 == key3 {
-		t.Fatal("expected different cache keys with different variables")
+		t.Fatalf("rendered key should differ when variables differ")
 	}
 }
 
 // TestCommitHashValidationEdgeCases tests edge cases in commit hash validation
 func TestCommitHashValidationEdgeCases(t *testing.T) {
 	tmp := t.TempDir()
+	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmp)
+	os.Chdir(workDir)
 	defer os.Chdir(oldWd)
 
 	// Create test object directory
@@ -641,27 +464,14 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 	origGetRemoteCommitFunc := getRemoteCommitFunc
 	defer func() { getRemoteCommitFunc = origGetRemoteCommitFunc }()
 
-	// Test 1: No stored hash (cache created without tracking)
-	getRemoteCommitFunc = func(repo, ref string) (string, error) {
-		return "b2c3d4e5f6789012345678901234567890abcdef", nil
-	}
-
-	valid, err := validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
-	if err != nil {
-		t.Fatalf("validation should not fail with no stored hash: %v", err)
-	}
-	if !valid {
-		t.Fatal("validation should pass when no stored hash exists")
-	}
-
-	// Test 2: Network failure during remote hash retrieval
+	// Test 1: Network failure during remote hash retrieval
 	writeCommitHashMetadata(objDir, "a1b2c3d4e5f6789012345678901234567890abcd")
 
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "", fmt.Errorf("network error: connection timeout")
 	}
 
-	valid, err = validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
+	valid, err := validateCachedCommitHash("https://github.com/test/repo.git", "main", objDir)
 	if err != nil {
 		t.Fatalf("validation should not fail on network error: %v", err)
 	}
@@ -669,7 +479,7 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 		t.Fatal("validation should pass gracefully on network error")
 	}
 
-	// Test 3: Hash mismatch (should return false, no error)
+	// Test 2: Hash mismatch (should return false, no error)
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "b2c3d4e5f6789012345678901234567890abcdef", nil
 	}
@@ -682,7 +492,7 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 		t.Fatal("validation should return false when hashes don't match")
 	}
 
-	// Test 4: Hash match (should return true, no error)
+	// Test 3: Hash match (should return true, no error)
 	getRemoteCommitFunc = func(repo, ref string) (string, error) {
 		return "a1b2c3d4e5f6789012345678901234567890abcd", nil
 	}
@@ -696,31 +506,139 @@ func TestCommitHashValidationEdgeCases(t *testing.T) {
 	}
 }
 
-// copyDirCache recursively copies a directory for cache tests
-func copyDirCache(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+// TestPrepareTemplatePrunesOldRenderedCache verifies that prepareAndRenderTemplate removes
+// the previous rendered cache directory when variables change (rendered key changes).
+func TestPrepareTemplatePrunesOldRenderedCache(t *testing.T) {
+	tmp := t.TempDir()
+	wd := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	if err := os.MkdirAll(wd, 0o755); err != nil {
+		t.Fatalf("mkdir wd: %v", err)
+	}
+	old, _ := os.Getwd()
+	os.Chdir(wd)
+	defer os.Chdir(old)
 
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
+	// Fake repo with template
+	repoDir := filepath.Join(tmp, "repo")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi {{.NAME}}"), 0o644); err != nil {
+		t.Fatalf("write tpl: %v", err)
+	}
 
-		dstPath := filepath.Join(dst, relPath)
+	// Stub clone
+	origClone := cloneFunc
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+	defer func() { cloneFunc = origClone }()
 
-		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
-		}
+	// Initial target/config
+	target := config.Target{Template: config.Template{Repo: "stub", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}, RenderedPath: "out.txt"}
+	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": target}}
 
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
+	res1, err := prepareAndRenderTemplate("t", target, cfg, false, &config.SecurityConfig{}, nil, nil)
+	if err != nil {
+		t.Fatalf("first prepare: %v", err)
+	}
+	oldRenderedKey := res1.RenderedKey
+	oldDir := filepath.Join(".duck", "objects", "rendered", oldRenderedKey)
+	if _, err := os.Stat(oldDir); err != nil {
+		t.Fatalf("old rendered dir missing: %v", err)
+	}
 
-		return os.WriteFile(dstPath, data, info.Mode())
-	})
+	// Change variable to force new rendered key
+	target2 := target
+	target2.Variables = map[string]config.VarValue{"NAME": config.NewLiteralVar("two")}
+	cfg.Targets["t"] = target2
+	res2, err := prepareAndRenderTemplate("t", target2, cfg, false, &config.SecurityConfig{}, nil, nil)
+	if err != nil {
+		t.Fatalf("second prepare: %v", err)
+	}
+	if res2.RenderedKey == oldRenderedKey {
+		t.Fatalf("rendered key did not change")
+	}
+
+	// Old directory should be pruned
+	if _, err := os.Stat(oldDir); !os.IsNotExist(err) {
+		t.Fatalf("old rendered cache directory was not pruned: %v", err)
+	}
+	// New dir should exist
+	newDir := filepath.Join(".duck", "objects", "rendered", res2.RenderedKey)
+	if _, err := os.Stat(newDir); err != nil {
+		t.Fatalf("new rendered dir missing: %v", err)
+	}
+	// Symlink should point to new rendered file
+	data, err := os.ReadFile("out.txt")
+	if err != nil {
+		t.Fatalf("read out: %v", err)
+	}
+	if !strings.Contains(string(data), "two") {
+		t.Fatalf("symlink not updated to new rendered content: %s", string(data))
+	}
+}
+
+// TestVariableChangeDoesNotRefetchRemote ensures variable-only changes do not cause a new remote fetch.
+func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
+	tmp := t.TempDir()
+	wd := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
+	if err := os.MkdirAll(wd, 0o755); err != nil {
+		t.Fatalf("mkdir wd: %v", err)
+	}
+	oldWD, _ := os.Getwd()
+	os.Chdir(wd)
+	defer os.Chdir(oldWD)
+
+	// Fake repo with template
+	repoDir := filepath.Join(tmp, "repo")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	content := "hello {{.NAME}}"
+	if err := os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write tpl: %v", err)
+	}
+
+	// Mock clone
+	origClone := cloneFunc
+	cloneCalls := 0
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) { cloneCalls++; return repoDir, nil }
+	defer func() { cloneFunc = origClone }()
+
+	target := config.Target{Template: config.Template{Repo: "https://example/repo.git", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("Alice")}, RenderedPath: "out.txt"}
+	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": target}}
+
+	// First render
+	if _, err := prepareAndRenderTemplate("t", target, cfg, false, &config.SecurityConfig{}, nil, nil); err != nil {
+		t.Fatalf("first render: %v", err)
+	}
+	remoteKey, err := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
+	if err != nil {
+		t.Fatalf("remote key: %v", err)
+	}
+	remoteDir := filepath.Join(".duck", "objects", "remote", remoteKey)
+	if _, err := os.Stat(remoteDir); err != nil {
+		t.Fatalf("remote dir missing: %v", err)
+	}
+
+	// Change only variable
+	target2 := target
+	target2.Variables = map[string]config.VarValue{"NAME": config.NewLiteralVar("Bob")}
+	cfg.Targets["t"] = target2
+	if _, err := prepareAndRenderTemplate("t", target2, cfg, false, &config.SecurityConfig{}, nil, nil); err != nil {
+		t.Fatalf("second render: %v", err)
+	}
+
+	if cloneCalls != 1 {
+		t.Fatalf("expected exactly one remote fetch, got %d", cloneCalls)
+	}
+
+	b, err := os.ReadFile("out.txt")
+	if err != nil {
+		t.Fatalf("read rendered: %v", err)
+	}
+	if !strings.Contains(string(b), "Bob") {
+		t.Fatalf("render did not reflect variable change: %s", string(b))
+	}
 }
 
 // end

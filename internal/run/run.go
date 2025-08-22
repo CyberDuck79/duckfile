@@ -47,10 +47,11 @@ var (
 // PrepareTemplateResult holds the results of template preparation
 // shared between Exec and Sync operations
 type PrepareTemplateResult struct {
-	ObjFile  string // Path to rendered object file
-	LinkPath string // Path where symlink should point
-	OldKey   string // Previous cache key (for cleanup)
-	CacheKey string // Current cache key
+	ObjFile        string // Path to rendered object file
+	LinkPath       string // Path where symlink should point
+	OldRenderedKey string // Previous rendered cache key (for cleanup)
+	RenderedKey    string // Current rendered cache key
+	RemoteKey      string // Remote cache key (stable for repo/ref/path)
 }
 
 // Search target from configuration, return effective target name and configuration or error if unknown target.
@@ -80,12 +81,11 @@ func searchTarget(cfg *config.DuckConf, targetName string) (string, config.Targe
 func prepareAndRenderTemplate(targetName string, target config.Target, cfg *config.DuckConf, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*PrepareTemplateResult, error) {
 	log.Infof("🎯 prepare template for target %q", targetName)
 
-	// Validate repository host access before proceeding
 	if err := config.ValidateRepoAccess(target.Template.Repo, securityCfg); err != nil {
 		return nil, fmt.Errorf("repository access denied: %w", err)
 	}
 
-	// 1. Resolve variables first (no need to clone to do this)
+	// 1. Resolve variables
 	vars, err := resolveVariables(target.Variables)
 	if err != nil {
 		return nil, err
@@ -97,113 +97,86 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		}
 	}
 
-	// 2. Compute deterministic cache key and object path
 	base := strings.TrimSuffix(filepath.Base(target.Template.Path), ".tpl")
 
-	// Resolve commit hash tracking setting for cache key computation
 	trackCommitHash := config.ResolveTrackCommitHash(trackCommitHashFlag, &target.Template, cfg)
 
-	cacheKey, err := computeCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path, vars, trackCommitHash)
+	// 2. Compute two-tier cache keys
+	remoteKey, err := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
 	if err != nil {
 		return nil, err
 	}
-	objDir := filepath.Join(".duck", "objects", cacheKey)
-	objFile := filepath.Join(objDir, base)
-	// Ensure objects dir exists only if we will write into it later.
-	log.Infof("🔑 cache key %.12s", cacheKey)
-	log.Debugf("object dir %s", objDir)
+	renderedKey, err := computeRenderedCacheKey(vars) // ONLY variables drive rendered key
+	if err != nil {
+		return nil, err
+	}
 
-	// 3. Prepare per-target cache dir and compute symlink path
-	cacheDir := filepath.Join(".duck", targetName)
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+	remoteDir := filepath.Join(".duck", "objects", "remote", remoteKey)
+	renderedDir := filepath.Join(".duck", "objects", "rendered", renderedKey)
+	remoteTemplateFile := filepath.Join(remoteDir, filepath.Base(target.Template.Path)) // raw template copy
+	renderedFile := filepath.Join(renderedDir, base)
+
+	// per-target directory for symlink
+	perTargetDir := filepath.Join(".duck", targetName)
+	if err := os.MkdirAll(perTargetDir, 0o755); err != nil {
 		return nil, err
 	}
 
 	linkPath := target.RenderedPath
 	if linkPath == "" {
-		linkPath = filepath.Join(cacheDir, base) // per-target path
+		linkPath = filepath.Join(perTargetDir, base)
 	}
 
-	// 4. Check if we need to render: cache miss, force flag, or commit hash validation
-	needRender := force
-	if !needRender {
-		if _, err := os.Stat(objFile); err != nil {
-			needRender = true
-		}
+	// Determine if remote fetch needed
+	needRemote := force
+	if _, err := os.Stat(remoteTemplateFile); os.IsNotExist(err) {
+		needRemote = true
 	}
 
-	// 4.1. If cache exists and commit hash tracking is enabled, validate the cached commit hash
-	if !needRender && trackCommitHash {
-		log.Infof("🔍 Checking for remote updates: %s@%s", target.Template.Repo, target.Template.Ref)
-		log.Debugf("validating cached commit hash for %s@%s", target.Template.Repo, target.Template.Ref)
-
-		cacheValid, err := validateCachedCommitHash(target.Template.Repo, target.Template.Ref, objDir)
+	// Commit hash validation (only if tracking on and remote exists)
+	if !needRemote && trackCommitHash {
+		log.Infof("🔍 checking remote updates: %s@%s", target.Template.Repo, target.Template.Ref)
+		valid, err := validateCachedCommitHash(target.Template.Repo, target.Template.Ref, remoteDir)
 		if err != nil {
-			log.Errorf("commit hash validation failed for %s@%s: %v", target.Template.Repo, target.Template.Ref, err)
 			return nil, fmt.Errorf("commit hash validation failed: %w", err)
 		}
-
-		if !cacheValid {
-			// Commit hash has changed - check auto-update setting
+		if !valid {
 			autoUpdate := config.ResolveAutoUpdateOnChange(autoUpdateOnChangeFlag, &target.Template, cfg)
-
 			if autoUpdate {
-				log.Infof("📦 Updating template cache: %s@%s", target.Template.Repo, target.Template.Ref)
-				log.Infof("📦 commit hash changed for %s@%s, auto-updating cache", target.Template.Repo, target.Template.Ref)
-				if err := invalidateCache(objDir); err != nil {
-					log.Errorf("failed to invalidate cache for %s@%s: %v", target.Template.Repo, target.Template.Ref, err)
+				log.Infof("📦 updating remote cache (commit changed)")
+				if err := invalidateCache(remoteDir); err != nil {
 					return nil, err
 				}
-				needRender = true
+				needRemote = true
 			} else {
-				// Create detailed error message with guidance
-				storedHash, _ := readCommitHashMetadata(objDir)
+				storedHash, _ := readCommitHashMetadata(remoteDir)
 				remoteHash, _ := getRemoteCommitFunc(target.Template.Repo, target.Template.Ref)
-
-				return nil, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\n"+
-					"Template: %s@%s\n"+
-					"Cached commit:  %s\n"+
-					"Remote commit:  %s\n\n"+
-					"The cached template may be outdated and could produce incorrect results.\n\n"+
-					"To resolve this issue, choose one of the following options:\n\n"+
-					"1. Enable automatic updates (recommended):\n"+
-					"   Add 'autoUpdateOnChange: true' to your template configuration\n\n"+
-					"2. Force use current cache (one-time):\n"+
-					"   Run with the --force flag: 'duck sync --force' or 'duck exec --force'\n\n"+
-					"3. Clear cache and re-fetch:\n"+
-					"   Run 'duck clean' to remove cached templates\n\n"+
-					"4. Disable commit hash tracking:\n"+
-					"   Set 'trackCommitHash: false' in your configuration\n\n"+
-					"For more information, see: https://github.com/CyberDuck79/duckfile#commit-hash-tracking",
-					target.Template.Repo, target.Template.Ref,
-					truncateHash(storedHash), truncateHash(remoteHash))
+				return nil, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\nTemplate: %s@%s\nCached commit:  %s\nRemote commit:  %s\n\nEnable autoUpdateOnChange or re-run with --force", target.Template.Repo, target.Template.Ref, truncateHash(storedHash), truncateHash(remoteHash))
 			}
 		}
 	}
 
-	if needRender {
+	// 3. Fetch / update remote cache
+	if needRemote {
 		if force {
-			log.Infof("🔄 Force rebuilding template: %s@%s", target.Template.Repo, target.Template.Ref)
+			log.Infof("🔄 force fetching remote: %s@%s", target.Template.Repo, target.Template.Ref)
 		} else {
-			log.Infof("📝 Building template: %s@%s", target.Template.Repo, target.Template.Ref)
+			log.Infof("🔄 fetch remote: %s@%s", target.Template.Repo, target.Template.Ref)
 		}
-		log.Debugf("clone %s@%s", target.Template.Repo, target.Template.Ref)
-		// Fetch template repository at the requested ref
-		repoDir, err := cloneFunc(target.Template.Repo, target.Template.Ref, cacheDir)
+		if err := os.MkdirAll(remoteDir, 0o755); err != nil {
+			return nil, err
+		}
+		repoDir, err := cloneFunc(target.Template.Repo, target.Template.Ref, remoteDir)
 		if err != nil {
 			return nil, err
 		}
 		src := filepath.Join(repoDir, target.Template.Path)
-		// If checksum is configured, validate it against the template file
+		// checksum validation & warning logic
 		if target.Template.Checksum != "" {
-			sumFile := filepath.Join(cacheDir, "checksum.sha256")
-			// check if there is a checksum file
-			if _, err := os.Stat(sumFile); err == nil {
-				if oldChecksum, err := os.ReadFile(sumFile); err == nil {
-					log.Debugf("found old checksum %s", oldChecksum)
-					if string(oldChecksum) == target.Template.Checksum {
-						log.Warnf("template config (repo/ref/path/vars) changed but checksum is unchanged")
-					}
+			sumFile := filepath.Join(remoteDir, "checksum.sha256")
+			if _, err := os.Stat(sumFile); err == nil { // existing checksum
+				if oldChecksum, err := os.ReadFile(sumFile); err == nil && string(oldChecksum) == target.Template.Checksum {
+					log.Warnf("template config changed but checksum unchanged (repo/ref/path/vars)")
 				}
 			}
 			b, err := os.ReadFile(src)
@@ -218,35 +191,46 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 				return nil, fmt.Errorf("failed to write checksum file: %w", err)
 			}
 		}
-		if err := os.MkdirAll(objDir, 0o755); err != nil {
-			return nil, err
+		// copy raw template into remoteDir for stable reuse
+		raw, err := os.ReadFile(src)
+		if err != nil {
+			return nil, fmt.Errorf("read remote template: %w", err)
 		}
-		if err := renderTemplate(src, objFile, target, vars); err != nil {
-			return nil, err
+		if err := os.WriteFile(remoteTemplateFile, raw, 0o644); err != nil {
+			return nil, fmt.Errorf("cache remote template: %w", err)
 		}
-
-		// Store commit hash metadata if tracking is enabled
-		if trackCommitHash {
-			log.Infof("💾 Storing commit hash for future validation")
-			log.Debugf("storing commit hash metadata for %s@%s", target.Template.Repo, target.Template.Ref)
-			commitHash, err := getCurrentCommitFunc(repoDir)
-			if err != nil {
-				log.Warnf("failed to get commit hash for metadata storage: %v", err)
-			} else if err := writeCommitHashMetadata(objDir, commitHash); err != nil {
-				log.Warnf("failed to write commit hash metadata: %v", err)
-			} else {
-				log.Debugf("stored commit hash metadata: %s", truncateHash(commitHash))
-			}
+		// Always attempt to capture commit hash on fetch; inexpensive and simplifies later enabling of tracking.
+		commitHash, err := getCurrentCommitFunc(repoDir)
+		if err != nil {
+			log.Debugf("skip commit hash capture (unavailable): %v", err)
+		} else if err := writeCommitHashMetadata(remoteDir, commitHash); err != nil {
+			log.Warnf("failed to write commit hash metadata: %v", err)
 		}
-
-		log.Infof("✨ rendered %s -> %s", target.Template.Path, objFile)
-	}
-	if _, err := os.Stat(objFile); err == nil {
-		log.Debugf("object present %s", objFile)
 	}
 
-	// 5. Determine previous key from existing symlink (if any)
-	oldKey := ""
+	// 4. Determine if render needed
+	needRender := force
+	if _, err := os.Stat(renderedFile); os.IsNotExist(err) {
+		needRender = true
+	}
+	if needRemote {
+		needRender = true
+	} // remote changed implies re-render
+
+	if needRender {
+		log.Infof("🎨 render template -> %s", renderedFile)
+		if err := os.MkdirAll(renderedDir, 0o755); err != nil {
+			return nil, err
+		}
+		if err := renderTemplate(remoteTemplateFile, renderedFile, target, vars); err != nil {
+			return nil, err
+		}
+		// store linkage to remote key for potential future GC
+		_ = os.WriteFile(filepath.Join(renderedDir, "remote.key"), []byte(remoteKey), 0o644)
+	}
+
+	// 5. Detect old rendered key from existing symlink
+	oldRenderedKey := ""
 	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
 		if dest, err := os.Readlink(linkPath); err == nil {
 			if !filepath.IsAbs(dest) {
@@ -254,32 +238,26 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 			}
 			if abs, err := filepath.Abs(dest); err == nil {
 				objDirPrev := filepath.Dir(abs)
-				objectsDir := filepath.Base(filepath.Dir(objDirPrev))
-				if objectsDir == "objects" {
-					oldKey = filepath.Base(objDirPrev)
+				// expect .../objects/rendered/<key>
+				if filepath.Base(filepath.Dir(filepath.Dir(objDirPrev))) == "objects" && filepath.Base(filepath.Dir(objDirPrev)) == "rendered" {
+					oldRenderedKey = filepath.Base(objDirPrev)
 				}
 			}
 		}
 	}
 
-	// 6. Create/update symlink to the current object
-	if err := ensureSymlink(objFile, linkPath); err != nil {
+	// 6. Update symlink
+	if err := ensureSymlink(renderedFile, linkPath); err != nil {
 		return nil, err
 	}
-	log.Infof("🔗 symlink %s -> %s", linkPath, objFile)
+	log.Infof("🔗 symlink %s -> %s", linkPath, renderedFile)
 
-	// 7. If the key changed, remove the old object directory to free cache
-	if oldKey != "" && oldKey != cacheKey {
-		log.Infof("🗑️ prune old key %s", oldKey)
-		_ = os.RemoveAll(filepath.Join(".duck", "objects", oldKey))
+	// 7. Prune old rendered cache if changed
+	if oldRenderedKey != "" && oldRenderedKey != renderedKey {
+		_ = os.RemoveAll(filepath.Join(".duck", "objects", "rendered", oldRenderedKey))
 	}
 
-	return &PrepareTemplateResult{
-		ObjFile:  objFile,
-		LinkPath: linkPath,
-		OldKey:   oldKey,
-		CacheKey: cacheKey,
-	}, nil
+	return &PrepareTemplateResult{ObjFile: renderedFile, LinkPath: linkPath, OldRenderedKey: oldRenderedKey, RenderedKey: renderedKey, RemoteKey: remoteKey}, nil
 }
 
 // executeTarget handles the binary execution portion of Exec.
@@ -407,28 +385,33 @@ func resolveVariables(in map[string]config.VarValue) (map[string]any, error) {
 }
 
 // computeCacheKey builds a stable SHA1 over repo/ref/path, resolved vars, and commit tracking settings.
-func computeCacheKey(repo, ref, path string, vars map[string]any, trackCommitHash bool) (string, error) {
+// computeRemoteCacheKey builds a stable SHA1 over repo/ref/path only.
+func computeRemoteCacheKey(repo, ref, path string) (string, error) {
+	payload := map[string]string{"repo": repo, "ref": ref, "path": path}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	sum := sha1.Sum(b)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// computeRenderedCacheKey builds a stable SHA1 over resolved variables only (order independent).
+func computeRenderedCacheKey(vars map[string]any) (string, error) {
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	type kv struct {
-		K string      `json:"k"`
-		V interface{} `json:"v"`
+		K string `json:"k"`
+		V any    `json:"v"`
 	}
 	pairs := make([]kv, 0, len(keys))
 	for _, k := range keys {
 		pairs = append(pairs, kv{K: k, V: vars[k]})
 	}
-	payload := map[string]any{
-		"repo":            repo,
-		"ref":             ref,
-		"path":            path,
-		"vars":            pairs,
-		"trackCommitHash": trackCommitHash,
-	}
-	b, err := json.Marshal(payload)
+	b, err := json.Marshal(pairs)
 	if err != nil {
 		return "", err
 	}
@@ -585,7 +568,6 @@ func Clean(cfg *config.DuckConf, targetName string) error {
 		}
 		return os.RemoveAll(filepath.Join(".duck", "objects"))
 	}
-	// Determine the effective target key
 	key, t, err := searchTarget(cfg, targetName)
 	if err != nil {
 		return err
@@ -601,22 +583,19 @@ func cleanOne(targetName string, t config.Target) error {
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base)
 	}
-	// Remove symlink if it exists
 	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
-		// Remove the object pointed by this symlink as well
-		if key := detectKeyFromSymlink(linkPath); key != "" {
-			log.Debugf("remove object %s", key)
-			_ = os.RemoveAll(filepath.Join(".duck", "objects", key))
+		if renderedKey := detectRenderedKeyFromSymlink(linkPath); renderedKey != "" {
+			log.Debugf("remove rendered object %s", renderedKey)
+			_ = os.RemoveAll(filepath.Join(".duck", "objects", "rendered", renderedKey))
 		}
 		_ = os.Remove(linkPath)
 		log.Infof("🗂️ removed %s", linkPath)
 	}
-	// Remove per-target cache dir (cloned repo path etc.)
-	log.Debugf("remove cache dir %s", cacheDir)
+	log.Debugf("remove target dir %s", cacheDir)
 	return os.RemoveAll(cacheDir)
 }
 
-func detectKeyFromSymlink(linkPath string) string {
+func detectRenderedKeyFromSymlink(linkPath string) string {
 	if fi, err := os.Lstat(linkPath); err == nil && (fi.Mode()&os.ModeSymlink) != 0 {
 		if dest, err := os.Readlink(linkPath); err == nil {
 			if !filepath.IsAbs(dest) {
@@ -624,7 +603,7 @@ func detectKeyFromSymlink(linkPath string) string {
 			}
 			if abs, err := filepath.Abs(dest); err == nil {
 				objDirPrev := filepath.Dir(abs)
-				if filepath.Base(filepath.Dir(objDirPrev)) == "objects" {
+				if filepath.Base(filepath.Dir(filepath.Dir(objDirPrev))) == "objects" && filepath.Base(filepath.Dir(objDirPrev)) == "rendered" {
 					return filepath.Base(objDirPrev)
 				}
 			}
