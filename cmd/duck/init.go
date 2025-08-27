@@ -10,6 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Test seams for mocking in tests
+var runInitWizardFunc = runInitWizardImpl
+var runTargetWizardFunc = runTargetWizard
+
 func init() {
 	initCmd := &cobra.Command{
 		Use:   "init",
@@ -31,15 +35,19 @@ The wizard creates a complete duck.yaml file ready for use.`,
 			if _, err := os.Stat("duck.yaml"); err == nil {
 				return fmt.Errorf("duck.yaml already exists")
 			}
-			return runInitWizard()
+			return runInitWizardFunc()
 		},
 	}
 	rootCmd.AddCommand(initCmd)
 }
 
 func runInitWizard() error {
+	return runInitWizardFunc()
+}
+
+func runInitWizardImpl() error {
 	fmt.Println("Duckfile init wizard – press Enter to accept defaults or leave optional fields empty.")
-	first, name, err := runTargetWizard(true)
+	first, name, err := runTargetWizardFunc(true)
 	if err != nil {
 		return err
 	}
@@ -61,7 +69,7 @@ func runInitWizard() error {
 		if err != nil {
 			return err
 		}
-		nt, tname, err := runTargetWizard(false)
+		nt, tname, err := runTargetWizardFunc(false)
 		if err != nil {
 			return err
 		}
