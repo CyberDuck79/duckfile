@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
 	"github.com/CyberDuck79/duckfile/internal/log"
@@ -30,10 +29,8 @@ func defaultSecurityConfigIntegration() *config.SecurityConfig {
 // TestSyncAndCleanWithStubClone simulates clone + render cycle using a stub cloneFunc.
 func TestSyncAndCleanWithStubClone(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// create fake template repo structure that cloneFunc will copy from
@@ -92,10 +89,8 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 // TestChecksumValidation verifies checksum validation and warning logic.
 func TestChecksumValidation(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Write template file
@@ -191,10 +186,8 @@ func TestChecksumValidation(t *testing.T) {
 // not just in Exec operations.
 func TestChecksumValidationSync(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Write template file
@@ -283,10 +276,8 @@ func TestChecksumValidationSync(t *testing.T) {
 // TestCommitHashTrackingIntegration tests full commit hash tracking workflow
 func TestCommitHashTrackingIntegration(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Create fake template repo structure
@@ -371,10 +362,8 @@ func TestCommitHashTrackingIntegration(t *testing.T) {
 // TestCommitHashTrackingWithAutoUpdate tests auto-update behavior
 func TestCommitHashTrackingWithAutoUpdate(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Create fake template repo structure
@@ -466,10 +455,8 @@ func TestCommitHashTrackingWithAutoUpdate(t *testing.T) {
 // TestCommitHashTrackingWithoutAutoUpdate tests warn-and-stop behavior
 func TestCommitHashTrackingWithoutAutoUpdate(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Create fake template repo structure
@@ -560,10 +547,8 @@ func TestCommitHashTrackingWithoutAutoUpdate(t *testing.T) {
 // TestCommitHashTrackingNetworkFailure tests graceful handling of network failures
 func TestCommitHashTrackingNetworkFailure(t *testing.T) {
 	tmp := t.TempDir()
-	workDir := filepath.Join(tmp, fmt.Sprintf("wd-%d", time.Now().UnixNano()))
-	os.MkdirAll(workDir, 0o755)
 	oldWd, _ := os.Getwd()
-	os.Chdir(workDir)
+	os.Chdir(tmp)
 	defer os.Chdir(oldWd)
 
 	// Create fake template repo structure
