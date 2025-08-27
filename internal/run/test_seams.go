@@ -1,6 +1,22 @@
 package run
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+	"time"
+
+	"github.com/CyberDuck79/duckfile/internal/git"
+)
+
+// Test seams (overridable in tests for determinism / stubbing)
+var (
+	nowFunc              = time.Now
+	getenvFunc           = os.Getenv
+	execCommand          = exec.Command
+	cloneFunc            = git.CloneInto
+	getRemoteCommitFunc  = git.GetRemoteCommitHash
+	getCurrentCommitFunc = git.GetCurrentCommitHash
+)
 
 // TestSetCloneFunc overrides the internal cloneFunc seam for external (cmd package) tests.
 func TestSetCloneFunc(f func(string, string, string) (string, error)) { cloneFunc = f }
