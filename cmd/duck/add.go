@@ -29,7 +29,7 @@ The new target will be appended to your existing duck.yaml configuration.`,
 			if err != nil {
 				return err
 			}
-			nt, name, err := runTargetWizard(false)
+			nt, name, err := runTargetWizardFunc(false)
 			if err != nil {
 				return err
 			}
