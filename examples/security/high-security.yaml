@@ -1,0 +1,40 @@
+# High-Security Environment Configuration
+# This configuration enforces strict security policies for production environments
+
+version: 1
+
+# Digital signature for configuration verification (will be populated during signing)
+signature:
+  algorithm: ed25519
+  keyId: "security-admin-key-1"
+  signature: "base64-encoded-signature-will-be-here"
+
+# Host access control
+allowedHosts:
+  - github.com
+  - gitlab.internal.company.com
+deniedHosts:
+  - malicious-host.com
+  - suspicious-site.org
+strictMode: true
+
+# Policy enforcement
+enforcement:
+  forceChecksumValidation: true    # Fail if template has no checksum
+  forceCommitTracking: true        # Fail if trackCommitHash=false
+  disableAutoUpdate: true          # Override autoUpdateOnChange settings
+  strictPolicyMode: true           # Require security config to exist
+
+# File permission validation
+filePermissions:
+  enforceOwnership: true           # Require proper ownership (root for system files)
+  enforceReadOnly: true            # Require read-only permissions
+  allowGroupWrite: false           # Strict: no group write
+  requireSecureDirectories: true   # Parent dirs must be secure
+
+# Audit metadata
+metadata:
+  createdBy: "security-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Production security policy"
+  version: 1

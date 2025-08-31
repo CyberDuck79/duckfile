@@ -1,0 +1,32 @@
+# Development Environment Configuration  
+# This configuration provides flexibility for development while maintaining basic security
+
+version: 1
+
+# Host access control (relaxed for development)
+allowedHosts:
+  - github.com
+  - gitlab.com
+  - bitbucket.org
+strictMode: false
+
+# Policy enforcement (relaxed)
+enforcement:
+  forceChecksumValidation: false   # Allow templates without checksums for flexibility
+  forceCommitTracking: false       # Allow disabling commit tracking
+  disableAutoUpdate: false         # Allow auto-updates for convenience
+  strictPolicyMode: false          # Don't require security config
+
+# File permission validation (relaxed)
+filePermissions:
+  enforceOwnership: false          # Don't enforce strict ownership in dev
+  enforceReadOnly: false           # Allow modifications
+  allowGroupWrite: true            # Allow group collaboration
+  requireSecureDirectories: false  # Relaxed directory requirements
+
+# Audit metadata
+metadata:
+  createdBy: "development-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Development environment security"
+  version: 1

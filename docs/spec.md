@@ -178,13 +178,19 @@ DATABASE_URL=postgres://localhost:5432/myapp_john
 
 **Security Configuration (Host Allow/Deny Lists)**
 
-For supply-chain security, Duckfile supports restricting which Git hosts can be accessed for templates. **These restrictions must be configured outside of the `duck.yaml` file** to prevent attackers from modifying both the target repositories and the security policy in the same commit.
+For supply-chain security, Duckfile supports comprehensive security configuration including host restrictions, policy enforcement, digital signatures, and file permission validation. **Security configurations must be stored outside of the `duck.yaml` file** to prevent attackers from modifying both the target repositories and the security policy in the same commit.
 
 **JSON Schema**: See [`docs/security.schema.json`](security.schema.json) for the complete security configuration schema.
 
 ### Configuration Methods (in order of precedence):
 
-1. **CLI flags** (highest precedence):
+1. **🔒 Signed Security Config Files** (highest precedence, tamper-proof):
+   - System-wide: `/etc/duckfile/security.{yaml,yml}`
+   - User-specific: `~/.duckfile/security.{yaml,yml}`, `~/.config/duckfile/security.{yaml,yml}`
+   - Project-specific: `./.duckfile/security.yaml` (read-only)
+   - Files with valid digital signatures take highest precedence
+
+2. **⚡ CLI flags** (emergency admin access):
    ```bash
    # Root command flags
    duck build --allowed-hosts github.com,gitlab.internal.com
@@ -195,18 +201,80 @@ For supply-chain security, Duckfile supports restricting which Git hosts can be 
    duck sync target --denied-hosts bad-host.com
    ```
 
-2. **Environment variables** (medium precedence):
+3. **🌍 Environment variables** (system-level control):
    ```bash
    export DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"  
    export DUCK_DENIED_HOSTS="malicious-host.com"
    export DUCK_STRICT_MODE="true"  # Fail if no restrictions are configured
    ```
 
-3. **System configuration files** (lowest precedence, future enhancement):
-   ```bash
-   # Future: /etc/duckfile/security.yaml or ~/.duckfile/security.yaml
-   # Not yet implemented but planned for enterprise environments
-   ```
+4. **📄 Unsigned Security Config Files** (lower to prevent bypass):
+   - Same file locations as signed configs but without valid signatures
+   - Provides configuration file convenience without signature security
+
+5. **🔓 No restrictions** (backward compatibility):
+   - Default behavior when no security configuration is found
+
+### File Discovery Hierarchy
+
+Security configuration files are discovered in the following order (highest to lowest precedence):
+
+1. **System-wide configurations** (managed by system administrators):
+   - `/etc/duckfile/security.yaml`
+   - `/etc/duckfile/security.yml`
+
+2. **User-specific configurations** (per-user defaults):
+   - `~/.duckfile/security.yaml`
+   - `~/.duckfile/security.yml`
+   - `~/.config/duckfile/security.yaml`
+   - `~/.config/duckfile/security.yml`
+
+3. **Project-specific configurations** (project overrides, read-only):
+   - `./.duckfile/security.yaml`
+   - `./.duckfile/security.yml`
+
+**Note**: Digital signatures (`.sig` files) are checked alongside configuration files. Signed configurations always take precedence over unsigned ones at the same hierarchy level.
+
+### Example Security Configuration
+
+```yaml
+version: 1
+
+# Digital signature (populated during signing process)
+signature:
+  algorithm: ed25519
+  keyId: "security-admin-key-1"
+  signature: "base64-encoded-signature"
+
+# Host access control
+allowedHosts:
+  - github.com
+  - gitlab.internal.com
+deniedHosts:
+  - malicious-host.com
+strictMode: true
+
+# Policy enforcement
+enforcement:
+  forceChecksumValidation: true    # Fail if template has no checksum
+  forceCommitTracking: true        # Fail if trackCommitHash=false
+  disableAutoUpdate: true          # Override autoUpdateOnChange settings
+  strictPolicyMode: true           # Require security config to exist
+
+# File permission validation
+filePermissions:
+  enforceOwnership: true           # Require proper ownership
+  enforceReadOnly: true            # Require read-only permissions
+  allowGroupWrite: false           # No group write access
+  requireSecureDirectories: true   # Parent dirs must be secure
+
+# Audit metadata
+metadata:
+  createdBy: "security-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Production security policy"
+  version: 1
+```
 
 ### Security Rules:
 - **Precedence**: CLI flags override environment variables

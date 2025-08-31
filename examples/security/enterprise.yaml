@@ -1,0 +1,35 @@
+# Enterprise Environment Configuration
+# This configuration balances security and usability for enterprise environments
+
+version: 1
+
+# Host access control
+allowedHosts:
+  - github.com
+  - gitlab.enterprise.com
+  - internal-git.company.com
+deniedHosts:
+  - public-pastebin.com
+  - suspicious-code-sharing.net
+strictMode: true
+
+# Policy enforcement
+enforcement:
+  forceChecksumValidation: true    # Require checksums for supply chain security
+  forceCommitTracking: true        # Track commit changes
+  disableAutoUpdate: false         # Allow auto-updates with tracking
+  strictPolicyMode: true           # Require security config
+
+# File permission validation
+filePermissions:
+  enforceOwnership: true           # Enforce proper ownership
+  enforceReadOnly: true            # Security configs should be read-only
+  allowGroupWrite: false           # No group write access
+  requireSecureDirectories: true   # Secure parent directories
+
+# Audit metadata
+metadata:
+  createdBy: "platform-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Enterprise security policy"
+  version: 1
