@@ -325,7 +325,7 @@ func verifySingleConfig(configPath string, verbose bool) error {
 		if securityConfig.IsSigned {
 			if verbose {
 				log.Infof("✅ Signature verification successful")
-				log.Infof("   📋 Key ID: %s", securityConfig.Signature.KeyId)
+				log.Infof("   📋 Key ID: %s", securityConfig.Signature.KeyID)
 				log.Infof("   🔐 Algorithm: %s", securityConfig.Signature.Algorithm)
 			} else {
 				log.Infof("✅ Signature verification successful")

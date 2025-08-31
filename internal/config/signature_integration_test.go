@@ -48,7 +48,7 @@ metadata:
   createdBy: "security-team"
   purpose: "Production security policy"
   version: 1
-`, keyPair.KeyId)
+`, keyPair.KeyID)
 
 	configPath := filepath.Join(tempDir, "security.yaml")
 	err = os.WriteFile(configPath, []byte(configContent), 0644)
@@ -119,8 +119,8 @@ metadata:
 		t.Errorf("Expected algorithm 'Ed25519', got '%s'", loadedConfig.Signature.Algorithm)
 	}
 
-	if loadedConfig.Signature.KeyId != keyPair.KeyId {
-		t.Errorf("Expected key ID '%s', got '%s'", keyPair.KeyId, loadedConfig.Signature.KeyId)
+	if loadedConfig.Signature.KeyID != keyPair.KeyID {
+		t.Errorf("Expected key ID '%s', got '%s'", keyPair.KeyID, loadedConfig.Signature.KeyID)
 	}
 
 	// Check enforcement settings
@@ -256,7 +256,7 @@ allowedHosts:
 signature:
   algorithm: "Ed25519"
   keyId: "%s"
-`, keyPair.KeyId)
+`, keyPair.KeyID)
 
 	configPath := filepath.Join(tempDir, "security.yaml")
 	err = os.WriteFile(configPath, []byte(configContent), 0644)

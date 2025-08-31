@@ -27,7 +27,7 @@ func TestGenerateKeyPair(t *testing.T) {
 		t.Errorf("Expected private key size %d, got %d", ed25519.PrivateKeySize, len(keyPair.PrivateKey))
 	}
 
-	if keyPair.KeyId == "" {
+	if keyPair.KeyID == "" {
 		t.Error("Expected non-empty key ID")
 	}
 
@@ -132,8 +132,8 @@ func TestSaveAndLoadKeyPair(t *testing.T) {
 	}
 
 	// Verify files were created
-	privateKeyPath := filepath.Join(tempDir, keyPair.KeyId+"-private.key")
-	publicKeyPath := filepath.Join(tempDir, keyPair.KeyId+".pub")
+	privateKeyPath := filepath.Join(tempDir, keyPair.KeyID+"-private.key")
+	publicKeyPath := filepath.Join(tempDir, keyPair.KeyID+".pub")
 
 	if _, err := os.Stat(privateKeyPath); os.IsNotExist(err) {
 		t.Error("Private key file was not created")
@@ -181,7 +181,7 @@ func TestLoadPublicKey(t *testing.T) {
 	}
 
 	// Save public key with standard naming
-	publicKeyPath := filepath.Join(keysDir, keyPair.KeyId+".pub")
+	publicKeyPath := filepath.Join(keysDir, keyPair.KeyID+".pub")
 	publicKeyData := base64.StdEncoding.EncodeToString(keyPair.PublicKey)
 	err = os.WriteFile(publicKeyPath, []byte(publicKeyData), 0644)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestLoadPublicKey(t *testing.T) {
 	os.Setenv("DUCK_KEYS_PATH", keysDir)
 
 	// Load the public key
-	loadedPublicKey, err := LoadPublicKey(keyPair.KeyId)
+	loadedPublicKey, err := LoadPublicKey(keyPair.KeyID)
 	if err != nil {
 		t.Fatalf("LoadPublicKey() failed: %v", err)
 	}

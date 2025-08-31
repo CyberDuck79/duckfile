@@ -160,19 +160,19 @@ func validateOwnership(fileType SecurityFileType, stat *syscall.Stat_t, result *
 
 	case SecurityFileTypeUser:
 		// User files should be owned by the current user
-		currentUid := uint32(os.Getuid())
-		if stat.Uid != currentUid {
-			return fmt.Errorf("user config file should be owned by current user (uid %d), but is owned by uid %d", currentUid, stat.Uid)
+		currentUID := uint32(os.Getuid())
+		if stat.Uid != currentUID {
+			return fmt.Errorf("user config file should be owned by current user (uid %d), but is owned by uid %d", currentUID, stat.Uid)
 		}
 
 	case SecurityFileTypeProject:
 		// Project files can be owned by current user or project team
 		// More flexible ownership rules for collaborative development
-		currentUid := uint32(os.Getuid())
-		if stat.Uid != currentUid {
+		currentUID := uint32(os.Getuid())
+		if stat.Uid != currentUID {
 			// Allow if file is in a shared project directory
 			// This is a more permissive check for development workflows
-			result.Issues = append(result.Issues, fmt.Sprintf("project config file owned by uid %d instead of current user uid %d (warning)", stat.Uid, currentUid))
+			result.Issues = append(result.Issues, fmt.Sprintf("project config file owned by uid %d instead of current user uid %d (warning)", stat.Uid, currentUID))
 			return nil // Don't fail, just warn
 		}
 	}
@@ -275,7 +275,7 @@ func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, resul
 	// On Unix-like systems, check ownership
 	if runtime.GOOS != "windows" {
 		if stat, ok := dirInfo.Sys().(*syscall.Stat_t); ok {
-			currentUid := uint32(os.Getuid())
+			currentUID := uint32(os.Getuid())
 
 			// For system paths, require root ownership
 			if isSystemPath(dirPath) && stat.Uid != 0 {
@@ -283,8 +283,8 @@ func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, resul
 			}
 
 			// For user paths, require current user ownership
-			if isUserPath(dirPath) && stat.Uid != currentUid {
-				return fmt.Errorf("user directory should be owned by current user (uid %d), but owned by uid %d", currentUid, stat.Uid)
+			if isUserPath(dirPath) && stat.Uid != currentUID {
+				return fmt.Errorf("user directory should be owned by current user (uid %d), but owned by uid %d", currentUID, stat.Uid)
 			}
 		}
 	}

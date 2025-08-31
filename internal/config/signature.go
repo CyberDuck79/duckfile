@@ -14,7 +14,7 @@ import (
 type SignatureKeyPair struct {
 	PublicKey  ed25519.PublicKey
 	PrivateKey ed25519.PrivateKey
-	KeyId      string
+	KeyID      string
 }
 
 // GenerateKeyPair generates a new Ed25519 key pair for signing security configurations
@@ -30,7 +30,7 @@ func GenerateKeyPair() (*SignatureKeyPair, error) {
 	return &SignatureKeyPair{
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
-		KeyId:      keyId,
+		KeyID:      keyId,
 	}, nil
 }
 
@@ -136,14 +136,14 @@ func SaveKeyPair(keyPair *SignatureKeyPair, outputDir string) error {
 	}
 
 	// Save private key
-	privateKeyPath := filepath.Join(outputDir, fmt.Sprintf("%s-private.key", keyPair.KeyId))
+	privateKeyPath := filepath.Join(outputDir, fmt.Sprintf("%s-private.key", keyPair.KeyID))
 	privateKeyData := base64.StdEncoding.EncodeToString(keyPair.PrivateKey)
 	if err := os.WriteFile(privateKeyPath, []byte(privateKeyData), 0600); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 
 	// Save public key
-	publicKeyPath := filepath.Join(outputDir, fmt.Sprintf("%s.pub", keyPair.KeyId))
+	publicKeyPath := filepath.Join(outputDir, fmt.Sprintf("%s.pub", keyPair.KeyID))
 	publicKeyData := base64.StdEncoding.EncodeToString(keyPair.PublicKey)
 	if err := os.WriteFile(publicKeyPath, []byte(publicKeyData), 0644); err != nil {
 		return fmt.Errorf("failed to save public key: %w", err)

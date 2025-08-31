@@ -49,7 +49,7 @@ type SecurityConfig struct {
 // DigitalSignature holds signature verification information
 type DigitalSignature struct {
 	Algorithm string `yaml:"algorithm"` // "ed25519"
-	KeyId     string `yaml:"keyId"`     // Key identifier for lookup
+	KeyID     string `yaml:"keyId"`     // Key identifier for lookup
 	Signature string `yaml:"signature"` // base64-encoded signature
 }
 
@@ -162,7 +162,7 @@ func checkSecurityConfigFile(path string, fileType SecurityFileType) *SecurityCo
 		// Test readability
 		if file, err := os.Open(path); err == nil {
 			config.Readable = true
-			file.Close()
+			file.Close() //nolint:errcheck
 		}
 	}
 
@@ -219,7 +219,7 @@ func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 		}
 
 		// Load the public key for verification
-		publicKey, err := LoadPublicKey(config.Signature.KeyId)
+		publicKey, err := LoadPublicKey(config.Signature.KeyID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load public key for verification of %s: %w", path, err)
 		}

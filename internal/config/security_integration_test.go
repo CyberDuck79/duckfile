@@ -1,3 +1,4 @@
+//nolint:errcheck
 package config
 
 import (
@@ -61,7 +62,7 @@ strictMode: true
 		t.Fatalf("failed to create keys directory: %v", err)
 	}
 
-	pubKeyPath := filepath.Join(pubKeyDir, keyPair.KeyId+".pub")
+	pubKeyPath := filepath.Join(pubKeyDir, keyPair.KeyID+".pub")
 	pubKeyData := base64.StdEncoding.EncodeToString(keyPair.PublicKey)
 	if err := os.WriteFile(pubKeyPath, []byte(pubKeyData), 0644); err != nil {
 		t.Fatalf("failed to write public key: %v", err)
