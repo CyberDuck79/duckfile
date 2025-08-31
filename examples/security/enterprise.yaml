@@ -13,12 +13,13 @@ deniedHosts:
   - suspicious-code-sharing.net
 strictMode: true
 
-# Policy enforcement
+# Policy enforcement (enterprise-grade)
 enforcement:
-  forceChecksumValidation: true    # Require checksums for supply chain security
-  forceCommitTracking: true        # Track commit changes
-  disableAutoUpdate: false         # Allow auto-updates with tracking
-  strictPolicyMode: true           # Require security config
+  forceChecksumValidation: true    # Require checksums for all templates
+  forceCommitTracking: true        # Require commit tracking
+  disableAutoUpdate: true          # Disable auto-updates for stability
+  strictPolicyMode: true           # Security config is mandatory
+  enforceFilePermissions: true     # Strict file permission validation
 
 # File permission validation
 filePermissions:

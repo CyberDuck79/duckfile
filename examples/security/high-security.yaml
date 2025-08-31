@@ -24,6 +24,7 @@ enforcement:
   forceCommitTracking: true        # Fail if trackCommitHash=false
   disableAutoUpdate: true          # Override autoUpdateOnChange settings
   strictPolicyMode: true           # Require security config to exist
+  enforceFilePermissions: true     # Validate file permissions according to policy
 
 # File permission validation
 filePermissions:

@@ -52,6 +52,7 @@ type PolicyEnforcement struct {
 	ForceCommitTracking     bool `yaml:"forceCommitTracking"`     // Fail if trackCommitHash=false
 	DisableAutoUpdate       bool `yaml:"disableAutoUpdate"`       // Override autoUpdateOnChange settings
 	StrictPolicyMode        bool `yaml:"strictPolicyMode"`        // Require security config to exist
+	EnforceFilePermissions  bool `yaml:"enforceFilePermissions"`  // Validate file permissions according to policy
 }
 
 // FilePermissionPolicy defines file permission validation rules
@@ -231,6 +232,25 @@ func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 	// Validate the configuration version
 	if config.Version == 0 {
 		config.Version = 1 // Default to version 1 if not specified
+	}
+	
+	// Validate file permissions if policy enforcement is enabled
+	if config.Enforcement != nil && config.Enforcement.EnforceFilePermissions && config.FilePermissions != nil {
+		configFile := &SecurityConfigFile{
+			Path:   path,
+			Type:   DetermineSecurityFileType(path),
+			Exists: true,
+		}
+		
+		permResult, err := ValidateFilePermissions(configFile, config.FilePermissions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate file permissions for %s: %w", path, err)
+		}
+		
+		if !permResult.Valid {
+			issues := append(permResult.Issues, permResult.ParentDirIssues...)
+			return nil, fmt.Errorf("file permission validation failed for %s: %v", path, issues)
+		}
 	}
 	
 	return &config, nil

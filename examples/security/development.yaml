@@ -10,12 +10,13 @@ allowedHosts:
   - bitbucket.org
 strictMode: false
 
-# Policy enforcement (relaxed)
+# Policy enforcement (relaxed for development)
 enforcement:
-  forceChecksumValidation: false   # Allow templates without checksums for flexibility
-  forceCommitTracking: false       # Allow disabling commit tracking
-  disableAutoUpdate: false         # Allow auto-updates for convenience
-  strictPolicyMode: false          # Don't require security config
+  forceChecksumValidation: false   # Allow templates without checksums
+  forceCommitTracking: false       # Allow autoUpdateOnChange=false
+  disableAutoUpdate: false         # Allow auto-updates
+  strictPolicyMode: false          # Security config is optional
+  enforceFilePermissions: false    # Relaxed file permission validation
 
 # File permission validation (relaxed)
 filePermissions:

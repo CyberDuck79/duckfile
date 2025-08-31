@@ -82,6 +82,11 @@
           "type": "boolean",
           "description": "Require security configuration to exist and be valid",
           "default": false
+        },
+        "enforceFilePermissions": {
+          "type": "boolean",
+          "description": "Validate file permissions according to filePermissions policy",
+          "default": false
         }
       },
       "additionalProperties": false
