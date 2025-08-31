@@ -217,6 +217,18 @@ For supply-chain security, Duckfile supports restricting which Git hosts can be 
 - **Exact matching**: Currently supports exact hostname matching (wildcards planned for future)
 - **Validation timing**: Host validation occurs before git operations, providing fast feedback
 
+### Security Best Practices:
+- Set restrictions in environment variables that require elevated privileges to modify
+- Use deny lists for known malicious hosts
+- Use allow lists in high-security environments to limit to trusted hosts only  
+- Enable strict mode in CI/CD environments to ensure policies are always applied
+- Regularly audit allowed hosts and remove unused entries
+
+### Supported Git URL Formats:
+- HTTPS: `https://github.com/user/repo.git`
+- SSH (SCP-style): `git@github.com:user/repo.git`  
+- SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
+
 ## 8. Commit Hash Tracking and Validation
 
 Duckfile supports tracking and validating commit hashes to detect when remote templates have changed. This feature helps ensure reproducible builds and provides early warning when templates are updated.
@@ -306,19 +318,73 @@ duck sync --no-track-commit-hash
 # No commit hash checking, cache based only on template config
 ```
 
-### Security Best Practices:
-- Set restrictions in environment variables that require elevated privileges to modify
-- Use deny lists for known malicious hosts
-- Use allow lists in high-security environments to limit to trusted hosts only  
-- Enable strict mode in CI/CD environments to ensure policies are always applied
-- Regularly audit allowed hosts and remove unused entries
+## 9. Environment Variables for Repository and Template Paths
 
-### Supported Git URL Formats:
-- HTTPS: `https://github.com/user/repo.git`
-- SSH (SCP-style): `git@github.com:user/repo.git`  
-- SSH (URL-style): `ssh://git@github.com:22/user/repo.git`
+During target execution, Duckfile automatically exposes repository and template information through environment variables. These variables enable advanced use cases such as:
 
-## 9. Deterministic cache (informative)
+- **Multi-file templates**: Reference other files in the repository from templates
+- **Script execution**: Run build scripts that are part of the template repository  
+- **Dynamic includes**: Include configuration fragments from the repository
+- **Asset copying**: Copy static files alongside rendered templates
+
+### Available Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DUCK_REPO_PATH` | Path to cloned repository | `.duck/objects/remote/abc123` |
+| `DUCK_REPO_URL` | Repository URL | `https://github.com/org/templates.git` |
+| `DUCK_REPO_REF` | Git reference used | `main` |
+| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/remote/abc123/Makefile.tpl` |
+| `DUCK_RENDERED_PATH` | Rendered template file path | `.duck/objects/rendered/def456/Makefile` |
+| `DUCK_SYMLINK_PATH` | Symlink path (what user sees) | `.duck/build/Makefile` |
+| `DUCK_TARGET_NAME` | Target name being executed | `build` |
+| `DUCK_CACHE_DIR` | Per-target cache directory | `.duck/build` |
+
+### Usage Examples
+
+**Copy assets from template repository:**
+```bash
+# In your target's args or a script referenced by the template  
+cp -r "${DUCK_REPO_PATH}/assets" ./
+```
+
+**Include other templates from the repository:**
+```yaml
+# In duck.yaml
+targets:
+  build:
+    binary: make
+    fileFlag: -f 
+    template:
+      repo: https://github.com/org/templates.git
+      path: Makefile.tpl
+    args: ["REPO_PATH=${DUCK_REPO_PATH}"]
+```
+
+**Execute repository scripts:**
+```bash
+# Template can reference scripts in the repository
+"${DUCK_REPO_PATH}/scripts/build.sh" "${DUCK_RENDERED_PATH}"
+```
+
+**Template with dynamic includes:**
+```makefile
+# In Makefile.tpl - include common definitions from the repository
+include ${DUCK_REPO_PATH}/common.mk
+
+build:
+	@echo "Building with template from: ${DUCK_TEMPLATE_PATH}"
+	@echo "Target cache directory: ${DUCK_CACHE_DIR}"
+```
+
+### Security Considerations
+
+- Environment variables are only set during target execution
+- Repository paths point to Duckfile's cache directories
+- Variables follow the same security restrictions as repository access
+- Paths are validated and sanitized before exposure
+
+## 10. Deterministic cache (informative)
 
 Duckfile now uses a two‑tier cache separating remote template content from rendered output:
 
@@ -358,7 +424,7 @@ Rationale:
 - Separating remote and rendered layers prevents unnecessary network fetches when only variables change.
 - Always storing the commit hash enables a user to turn on tracking later without needing an immediate refetch to seed metadata.
 
-## 10. Example config
+## 11. Example config
 
 **Example `.env` file:**
 ```bash
@@ -422,7 +488,7 @@ settings:
   autoUpdateOnChange: false
 ```
 
-## 11. CLI subcommands
+## 12. CLI subcommands
 
 - `duck sync [target] [-f]`: render into cache and update symlinks without executing the tool. With `-f/--force`, ignore cache and re-render. If no target is provided, syncs all (default + named) targets.
   - `--track-commit-hash` / `--no-track-commit-hash`: Override commit hash tracking setting
@@ -434,7 +500,7 @@ settings:
 
 When a target lacks `binary`, `duck` will refuse to execute it with the root command. Use `duck sync` and `duck clean` instead.
 
-## 12. Checksum validation and warnings
+## 13. Checksum validation and warnings
 
 When a template config includes a `checksum` property, Duckfile will validate the fetched template file against the provided SHA-256 checksum. If the checksum does not match, Duckfile will abort and print an error message showing the expected and actual checksum.
 
@@ -442,7 +508,7 @@ If the template config changes (`repo`, `ref`, or `path`) but the `checksum` rem
 
 Checksum validation is optional. If no checksum is provided, Duckfile will proceed without validation.
 
-## 13. JSON-Schema (v7) excerpt
+## 14. JSON-Schema (v7) excerpt
 ```json
 {
   "definitions": {
@@ -527,6 +593,6 @@ Checksum validation is optional. If no checksum is provided, Duckfile will proce
 }
 ```
 
-## 14. Migration rules
+## 15. Migration rules
 Future changes will be announced with a version bump; for MVP users, no migration is required.
 

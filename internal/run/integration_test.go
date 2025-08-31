@@ -702,3 +702,116 @@ func TestExecArgumentOrdering(t *testing.T) {
 		t.Fatalf("unexpected arg order: %v", lines)
 	}
 }
+
+// TestEnvironmentVariablesIntegration verifies environment variables are available
+// to executed commands in a real execution scenario
+func TestEnvironmentVariablesIntegration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("script execution semantics differ on windows")
+	}
+
+	tmp := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmp)
+	defer os.Chdir(oldWd)
+
+	// Create template repository
+	repoDir := filepath.Join(tmp, "repo")
+	os.MkdirAll(repoDir, 0o755)
+	os.WriteFile(filepath.Join(repoDir, "test.tpl"), []byte("Template content: {{ .MESSAGE }}"), 0o644)
+
+	// Mock clone function
+	origClone := cloneFunc
+	cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+	defer func() { cloneFunc = origClone }()
+
+	// Create script that outputs environment variables
+	scriptPath := filepath.Join(tmp, "test-script")
+	scriptContent := `#!/bin/sh
+echo "DUCK_REPO_URL=${DUCK_REPO_URL}"
+echo "DUCK_REPO_REF=${DUCK_REPO_REF}"
+echo "DUCK_TARGET_NAME=${DUCK_TARGET_NAME}"
+echo "DUCK_TEMPLATE_PATH=${DUCK_TEMPLATE_PATH}"
+echo "DUCK_REPO_PATH=${DUCK_REPO_PATH}"
+echo "DUCK_RENDERED_PATH=${DUCK_RENDERED_PATH}"
+echo "DUCK_SYMLINK_PATH=${DUCK_SYMLINK_PATH}"
+echo "DUCK_CACHE_DIR=${DUCK_CACHE_DIR}"
+`
+	os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
+
+	// Update PATH to include our script
+	pathOrig := os.Getenv("PATH")
+	os.Setenv("PATH", tmp+":"+pathOrig)
+	defer os.Setenv("PATH", pathOrig)
+
+	// Capture script output
+	outputFile := filepath.Join(tmp, "output.log")
+	scriptWithRedirect := `#!/bin/sh
+test-script > ` + outputFile
+	scriptRedirectPath := filepath.Join(tmp, "script-redirect")
+	os.WriteFile(scriptRedirectPath, []byte(scriptWithRedirect), 0o755)
+
+	// Configure test target
+	cfg := &config.DuckConf{
+		Version: 1,
+		Targets: map[string]config.Target{
+			"test": {
+				Binary:   "script-redirect",
+				FileFlag: "-f",
+				Template: config.Template{
+					Repo: "https://github.com/example/repo.git",
+					Ref:  "v1.0.0",
+					Path: "test.tpl",
+				},
+				Variables: map[string]config.VarValue{
+					"MESSAGE": config.NewLiteralVar("Hello World"),
+				},
+			},
+		},
+	}
+
+	// Use real exec command for this integration test
+	origExec := execCommand
+	execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command(name, args...) }
+	defer func() { execCommand = origExec }()
+
+	// Execute target
+	err := Exec(cfg, "test", []string{}, defaultSecurityConfigIntegration(), nil, nil)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+
+	// Read and verify environment variables were passed to the script
+	output, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+
+	outputStr := string(output)
+	expectedOutputs := []string{
+		"DUCK_REPO_URL=https://github.com/example/repo.git",
+		"DUCK_REPO_REF=v1.0.0",
+		"DUCK_TARGET_NAME=test",
+		"DUCK_CACHE_DIR=.duck/test",
+	}
+
+	for _, expected := range expectedOutputs {
+		if !strings.Contains(outputStr, expected) {
+			t.Errorf("Expected output to contain %q, got: %s", expected, outputStr)
+		}
+	}
+
+	// Also verify that the paths point to the cache directories (this is correct behavior)
+	if !strings.Contains(outputStr, "DUCK_TEMPLATE_PATH=.duck/objects/remote/") {
+		t.Errorf("Expected DUCK_TEMPLATE_PATH to start with .duck/objects/remote/, got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "DUCK_REPO_PATH=.duck/objects/remote/") {
+		t.Errorf("Expected DUCK_REPO_PATH to start with .duck/objects/remote/, got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "DUCK_RENDERED_PATH=.duck/objects/rendered/") {
+		t.Errorf("Expected DUCK_RENDERED_PATH to start with .duck/objects/rendered/, got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "DUCK_SYMLINK_PATH=.duck/test/test") {
+		t.Errorf("Expected DUCK_SYMLINK_PATH to be .duck/test/test, got: %s", outputStr)
+	}
+}
