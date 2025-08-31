@@ -17,7 +17,7 @@ func TestSecurityCommandsIntegration(t *testing.T) {
 
 	// Build the duck binary for testing
 	duckBinary := filepath.Join(tmpDir, "duck")
-	
+
 	// Get the project root directory (go back from cmd/duck to project root)
 	projectRoot := filepath.Join(oldWd, "..", "..")
 	cmd := exec.Command("go", "build", "-o", duckBinary, "./cmd/duck")
@@ -31,7 +31,7 @@ func TestSecurityCommandsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("security status command failed: %v", err)
 	}
-	
+
 	if !strings.Contains(output, "No restrictions") {
 		t.Errorf("expected 'No restrictions' in status output, got: %s", output)
 	}
@@ -60,7 +60,7 @@ strictMode: true
 	if err != nil {
 		t.Fatalf("security status command failed: %v", err)
 	}
-	
+
 	if !strings.Contains(output, "unsigned") && !strings.Contains(output, "📄") {
 		t.Errorf("expected unsigned source or config file indicator in status output, got: %s", output)
 	}
@@ -95,7 +95,7 @@ func TestSecurityCommandsWithEnvOverride(t *testing.T) {
 
 	// Build the duck binary for testing
 	duckBinary := filepath.Join(tmpDir, "duck")
-	
+
 	// Get the project root directory (go back from cmd/duck to project root)
 	projectRoot := filepath.Join(oldWd, "..", "..")
 	cmd := exec.Command("go", "build", "-o", duckBinary, "./cmd/duck")
@@ -136,7 +136,7 @@ func TestSecurityCommandsWithDifferentPrecedence(t *testing.T) {
 
 	// Build the duck binary for testing
 	duckBinary := filepath.Join(tmpDir, "duck")
-	
+
 	// Get the project root directory (go back from cmd/duck to project root)
 	projectRoot := filepath.Join(oldWd, "..", "..")
 	cmd := exec.Command("go", "build", "-o", duckBinary, "./cmd/duck")

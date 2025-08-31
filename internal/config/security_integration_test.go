@@ -169,7 +169,7 @@ func TestSecurityPrecedenceSystemIntegration(t *testing.T) {
 	// Test 5: Create unsigned config file - should override env but not CLI
 	duckfileDir := filepath.Join(tmpDir, ".duckfile")
 	os.MkdirAll(duckfileDir, 0700)
-	
+
 	unsignedConfig := `version: 1
 allowedHosts:
   - unsigned-host.com
