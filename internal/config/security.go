@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -137,6 +138,55 @@ func DiscoverSecurityConfigs() ([]*SecurityConfigFile, error) {
 	projectPaths := []string{
 		"./.duckfile/security.yaml",
 		"./.duckfile/security.yml",
+	}
+
+	for _, path := range projectPaths {
+		if config := checkSecurityConfigFile(path, SecurityFileTypeProject); config != nil {
+			configs = append(configs, config)
+		}
+	}
+
+	return configs, nil
+}
+
+// DiscoverSecurityConfigsInDir discovers security configuration files relative to a specific directory.
+// This is primarily for testing purposes.
+func DiscoverSecurityConfigsInDir(baseDir string) ([]*SecurityConfigFile, error) {
+	var configs []*SecurityConfigFile
+
+	// 1. System-wide configurations (highest precedence for signed configs)
+	systemPaths := []string{
+		"/etc/duckfile/security.yaml",
+		"/etc/duckfile/security.yml",
+	}
+
+	for _, path := range systemPaths {
+		if config := checkSecurityConfigFile(path, SecurityFileTypeSystem); config != nil {
+			configs = append(configs, config)
+		}
+	}
+
+	// 2. User-specific configurations
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		userPaths := []string{
+			homeDir + "/.duckfile/security.yaml",
+			homeDir + "/.duckfile/security.yml",
+			homeDir + "/.config/duckfile/security.yaml",
+			homeDir + "/.config/duckfile/security.yml",
+		}
+
+		for _, path := range userPaths {
+			if config := checkSecurityConfigFile(path, SecurityFileTypeUser); config != nil {
+				configs = append(configs, config)
+			}
+		}
+	}
+
+	// 3. Project-specific configurations (lowest precedence) - relative to baseDir
+	projectPaths := []string{
+		filepath.Join(baseDir, ".duckfile", "security.yaml"),
+		filepath.Join(baseDir, ".duckfile", "security.yml"),
 	}
 
 	for _, path := range projectPaths {

@@ -260,9 +260,6 @@ func TestSecurityHostValidation(t *testing.T) {
 // TestSecurityFileDiscovery tests the security file discovery system
 func TestSecurityFileDiscovery(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
 
 	// Create various security configuration files
 	testFiles := map[string]string{
@@ -275,17 +272,18 @@ allowedHosts: [gitlab.com]
 	}
 
 	for path, content := range testFiles {
-		dir := filepath.Dir(path)
+		fullPath := filepath.Join(tmpDir, path)
+		dir := filepath.Dir(fullPath)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			t.Fatalf("failed to create directory %s: %v", dir, err)
 		}
-		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-			t.Fatalf("failed to write file %s: %v", path, err)
+		if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
+			t.Fatalf("failed to write file %s: %v", fullPath, err)
 		}
 	}
 
 	// Test file discovery
-	configs, err := DiscoverSecurityConfigs()
+	configs, err := DiscoverSecurityConfigsInDir(tmpDir)
 	if err != nil {
 		t.Fatalf("failed to discover security configs: %v", err)
 	}

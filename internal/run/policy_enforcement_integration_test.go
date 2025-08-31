@@ -258,7 +258,7 @@ func TestPolicyOverrideApplication(t *testing.T) {
 
 // Helper function for substring checking
 func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && 
+	return len(s) >= len(substr) &&
 		(s == substr || hasSubstringAt(s, substr))
 }
 
