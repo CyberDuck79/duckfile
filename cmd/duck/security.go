@@ -316,24 +316,22 @@ func verifySingleConfig(configPath string, verbose bool) error {
 			log.Infof("🔐 Verifying digital signature...")
 		}
 
-		// Read config and signature files
-		configData, err := os.ReadFile(configPath)
+		// Load and verify the configuration using the same system as config loading
+		securityConfig, err := config.LoadSecurityConfigFromFile(configPath)
 		if err != nil {
-			return fmt.Errorf("failed to read config file: %w", err)
+			return fmt.Errorf("signature verification failed: %w", err)
 		}
 
-		sigData, err := os.ReadFile(sigPath)
-		if err != nil {
-			return fmt.Errorf("failed to read signature file: %w", err)
-		}
-
-		// For now, we'll need to implement signature verification
-		// This would require loading a public key
-		_ = configData
-		_ = sigData
-
-		if verbose {
-			log.Infof("⚠ Signature verification not fully implemented yet")
+		if securityConfig.IsSigned {
+			if verbose {
+				log.Infof("✅ Signature verification successful")
+				log.Infof("   📋 Key ID: %s", securityConfig.Signature.KeyId)
+				log.Infof("   🔐 Algorithm: %s", securityConfig.Signature.Algorithm)
+			} else {
+				log.Infof("✅ Signature verification successful")
+			}
+		} else {
+			return fmt.Errorf("configuration was not properly signed during verification")
 		}
 	} else if verbose {
 		log.Infof("ℹ️  No digital signature present")

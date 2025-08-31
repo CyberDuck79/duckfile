@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CyberDuck79/duckfile/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -287,8 +288,8 @@ func BuildSecurityConfigWithPrecedence(cliAllowed []string, cliDenied []string, 
 
 		config, err := LoadSecurityConfigFromFile(configFile.Path)
 		if err != nil {
-			// Log error but continue with other configs
-			// In production, this might be logged differently
+			// Log error but continue with other configs for resilience
+			log.Debugf("Failed to load security config from %s: %v", configFile.Path, err)
 			continue
 		}
 
