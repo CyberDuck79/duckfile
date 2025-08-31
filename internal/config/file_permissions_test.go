@@ -46,7 +46,7 @@ func TestDetermineSecurityFileType(t *testing.T) {
 			if tt.expected == SecurityFileTypeUser && os.Getenv("HOME") == "" {
 				t.Skip("HOME environment variable not set")
 			}
-			
+
 			result := DetermineSecurityFileType(tt.path)
 			if result != tt.expected {
 				t.Errorf("DetermineSecurityFileType(%s) = %v, want %v", tt.path, result, tt.expected)
@@ -64,7 +64,7 @@ func TestValidateFilePermissions(t *testing.T) {
 	// Create a temporary file for testing
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test-security.yaml")
-	
+
 	// Create test file with content
 	content := `# Test security config
 allowedHosts:
@@ -179,7 +179,7 @@ allowedHosts:
 
 // Helper function for case-insensitive substring check
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || 
+	return len(s) >= len(substr) && (s == substr ||
 		(len(s) > len(substr) && hasSubstring(s, substr)))
 }
 
@@ -280,7 +280,7 @@ func TestFixFilePermissions(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "fix-test.yaml")
-	
+
 	// Create test file with bad permissions
 	content := "allowedHosts: ['*.example.com']"
 	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
@@ -369,7 +369,7 @@ func TestParentDirectoryValidation(t *testing.T) {
 	if err != nil {
 		t.Skip("Cannot get user home directory")
 	}
-	
+
 	testDir := filepath.Join(homeDir, "duckfile-test", "level1", "level2")
 	if err := os.MkdirAll(testDir, 0755); err != nil {
 		t.Fatalf("Failed to create nested directory: %v", err)

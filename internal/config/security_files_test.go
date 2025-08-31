@@ -208,7 +208,7 @@ strictMode: true
 	if err != nil {
 		t.Fatalf("Failed to load security config: %v", err)
 	}
-	
+
 	if config == nil {
 		t.Fatal("Expected non-nil config")
 	}
@@ -218,7 +218,7 @@ strictMode: true
 	if len(config.AllowedHosts) != len(expectedAllowed) {
 		t.Errorf("Expected %d allowed hosts, got %d", len(expectedAllowed), len(config.AllowedHosts))
 	}
-	
+
 	for i, expected := range expectedAllowed {
 		if i >= len(config.AllowedHosts) || config.AllowedHosts[i] != expected {
 			t.Errorf("Expected allowed host %s at index %d, got %v", expected, i, config.AllowedHosts)
@@ -229,7 +229,7 @@ strictMode: true
 	if len(config.DeniedHosts) != len(expectedDenied) {
 		t.Errorf("Expected %d denied hosts, got %d", len(expectedDenied), len(config.DeniedHosts))
 	}
-	
+
 	if len(config.DeniedHosts) > 0 && config.DeniedHosts[0] != "malicious.com" {
 		t.Errorf("Expected denied host 'malicious.com', got %s", config.DeniedHosts[0])
 	}

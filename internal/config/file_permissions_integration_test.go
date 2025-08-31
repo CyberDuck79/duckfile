@@ -140,7 +140,7 @@ filePermissions:
 }
 
 func TestFilePermissionValidationSimple(t *testing.T) {
-	// Skip on Windows  
+	// Skip on Windows
 	if runtime.GOOS == "windows" {
 		t.Skip("File permission validation not supported on Windows")
 	}
