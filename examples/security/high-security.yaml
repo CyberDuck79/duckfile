@@ -1,0 +1,55 @@
+# High-Security Environment Configuration
+# This configuration enforces strict security policies for production environments
+# Demonstrates Phase 4 Policy Enforcement Points implementation
+
+version: 1
+
+# Digital signature for configuration verification (will be populated during signing)
+signature:
+  algorithm: ed25519
+  keyId: "security-admin-key-1"
+  signature: "base64-encoded-signature-will-be-here"
+
+# Host access control with strict policy mode
+allowedHosts:
+  - github.com
+  - gitlab.internal.company.com
+deniedHosts:
+  - malicious-host.com
+  - suspicious-site.org
+strictMode: true
+
+# Policy enforcement (Phase 4) - Comprehensive policy validation
+enforcement:
+  forceChecksumValidation: true    # Fail if template has no checksum
+  forceCommitTracking: true        # Fail if trackCommitHash=false  
+  disableAutoUpdate: true          # Override autoUpdateOnChange settings
+  strictPolicyMode: true           # Require security config to exist
+  enforceFilePermissions: true     # Validate file permissions according to policy
+
+# File permission validation with enhanced security requirements
+filePermissions:
+  enforceOwnership: true           # Require proper ownership (root for system files)
+  enforceReadOnly: true            # Require read-only permissions for templates
+  allowGroupWrite: false           # Strict: no group write permissions
+  requireSecureDirectories: true   # Parent directories must have secure permissions
+
+# Template validation policies (enforced during sync/exec)
+templateValidation:
+  requireChecksum: true            # All templates must have checksums
+  requireCommitTracking: true      # All templates must track commit hashes
+  prohibitAutoUpdate: true         # Auto-update must be disabled for security
+
+# Repository access policies
+repositoryPolicies:
+  requireSignedCommits: true       # Only accept signed commits
+  validateCertificates: true       # Validate SSL certificates
+  enforceHostWhitelist: true       # Only allow whitelisted hosts
+
+# Audit metadata for compliance tracking
+metadata:
+  createdBy: "security-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Production security policy with Phase 4 enforcement"
+  version: 1
+  policyVersion: "4.0"             # Tracks policy enforcement phase

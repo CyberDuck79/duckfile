@@ -1,0 +1,45 @@
+version: 1
+
+# Development Security Configuration
+# Balanced security for development environments
+
+# Development-friendly host access
+allowedHosts:
+  - github.com
+  - gitlab.com
+  - gitlab.company.com
+  - dev-git.company.com
+  - localhost           # Allow local testing
+  - "*.dev.company.com" # Development subdomain pattern
+
+# Basic deny list for obvious threats
+deniedHosts:
+  - malicious-host.com
+  - known-threat.com
+
+# Less strict mode for development flexibility
+strictMode: false
+
+# Relaxed policy enforcement for development
+enforcement:
+  forceChecksumValidation: false    # Allow development without checksums
+  forceCommitTracking: false        # Optional tracking in development
+  disableAutoUpdate: false          # Allow auto-updates for convenience
+  strictPolicyMode: false           # Optional security config
+
+# Relaxed file permissions for development
+filePermissions:
+  enforceOwnership: false           # Relaxed ownership requirements
+  enforceReadOnly: false            # Allow writable files in dev
+  allowGroupWrite: true             # Allow group collaboration
+  requireSecureDirectories: false   # Relaxed directory requirements
+
+# Development metadata
+metadata:
+  createdBy: "dev-team"
+  purpose: "Development environment security policy"
+  version: 1
+  environment: "development"
+  notes:
+    - "Relaxed policies for development productivity"
+    - "Use enterprise-security.yaml for production"

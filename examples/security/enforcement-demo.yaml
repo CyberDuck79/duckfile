@@ -1,0 +1,76 @@
+# Policy Enforcement Demonstration Configuration
+# This example shows how Phase 4 Policy Enforcement Points work in practice
+# Use this configuration to test and understand policy validation
+
+version: 1
+
+# Digital signature for configuration verification (will be populated during signing)
+signature:
+  algorithm: ed25519
+  keyId: "enforcement-demo-key"
+  signature: "base64-encoded-signature-will-be-here"
+
+# Host access control with demonstration restrictions
+allowedHosts:
+  - github.com
+  - safe-repo.example.com
+deniedHosts:
+  - malicious-host.com
+  - untrusted-source.org
+strictMode: true
+
+# Policy enforcement configuration for demonstration
+enforcement:
+  forceChecksumValidation: true    # Will fail if template has no checksum
+  forceCommitTracking: true        # Will fail if trackCommitHash=false
+  disableAutoUpdate: true          # Will override autoUpdateOnChange=true
+  strictPolicyMode: true           # Will fail if no security config
+  enforceFilePermissions: true     # Will validate file permissions
+
+# File permission validation for demonstration
+filePermissions:
+  enforceOwnership: true           # Will check file ownership
+  enforceReadOnly: true            # Will check read-only permissions
+  allowGroupWrite: false           # Will deny group write permissions
+  requireSecureDirectories: true   # Will check parent directory permissions
+
+# Template validation policies (strict enforcement)
+templateValidation:
+  requireChecksum: true            # Enforced: all templates need checksums
+  requireCommitTracking: true      # Enforced: all templates need commit tracking
+  prohibitAutoUpdate: true         # Enforced: auto-update will be disabled
+
+# Repository access policies for demonstration
+repositoryPolicies:
+  requireSignedCommits: true       # Will validate commit signatures
+  validateCertificates: true       # Will validate SSL certificates
+  enforceHostWhitelist: true       # Will block non-whitelisted hosts
+
+# Example policy violations that would be caught:
+# 1. Template without checksum -> forceChecksumValidation violation
+# 2. Template with trackCommitHash=false -> forceCommitTracking violation  
+# 3. Template with autoUpdateOnChange=true -> disableAutoUpdate override
+# 4. File with group write permissions -> filePermissions violation
+# 5. Access to denied host -> host access violation
+# 6. Missing security config -> strictPolicyMode violation
+
+# Audit metadata for demonstration tracking
+metadata:
+  createdBy: "security-demo-team"
+  createdAt: "2025-08-31T10:00:00Z"
+  purpose: "Policy enforcement demonstration and testing"
+  version: 1
+  policyVersion: "4.0-demo"
+  notes: |
+    This configuration demonstrates Phase 4 Policy Enforcement Points.
+    
+    To test policy violations:
+    1. Create template without checksum - triggers forceChecksumValidation
+    2. Set trackCommitHash=false - triggers forceCommitTracking  
+    3. Set autoUpdateOnChange=true - triggers disableAutoUpdate override
+    4. Create file with 0666 permissions - triggers filePermissions violation
+    5. Try to access denied host - triggers host access violation
+    6. Run without security config - triggers strictPolicyMode violation
+    
+    Policy enforcement provides detailed violation reports and can apply
+    mandatory overrides to ensure compliance with security requirements.

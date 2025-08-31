@@ -1,9 +1,36 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Duckfile Security Configuration",
-  "description": "Security configuration for Duckfile host allow/deny lists. This configuration should be stored outside of duck.yaml to prevent supply-chain attacks where both targets and security policies could be modified together.",
+  "description": "Comprehensive security configuration for Duckfile including host allow/deny lists, digital signatures, policy enforcement, and file permissions. This configuration should be stored outside of duck.yaml to prevent supply-chain attacks where both targets and security policies could be modified together.",
   "type": "object",
   "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Configuration schema version",
+      "minimum": 1,
+      "default": 1
+    },
+    "signature": {
+      "type": "object",
+      "description": "Digital signature for configuration verification",
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["ed25519"],
+          "description": "Signature algorithm used"
+        },
+        "keyId": {
+          "type": "string",
+          "description": "Key identifier for signature verification"
+        },
+        "signature": {
+          "type": "string",
+          "description": "Base64-encoded digital signature"
+        }
+      },
+      "required": ["algorithm", "keyId", "signature"],
+      "additionalProperties": false
+    },
     "allowedHosts": {
       "type": "array",
       "items": {
@@ -31,18 +58,130 @@
       "type": "boolean",
       "description": "If true, fail if no host restrictions are configured. Useful for enforcing security policies.",
       "default": false
+    },
+    "enforcement": {
+      "type": "object",
+      "description": "Policy enforcement rules",
+      "properties": {
+        "forceChecksumValidation": {
+          "type": "boolean",
+          "description": "Fail if template has no checksum provided",
+          "default": false
+        },
+        "forceCommitTracking": {
+          "type": "boolean", 
+          "description": "Fail if trackCommitHash is disabled",
+          "default": false
+        },
+        "disableAutoUpdate": {
+          "type": "boolean",
+          "description": "Override autoUpdateOnChange settings to prevent automatic updates",
+          "default": false
+        },
+        "strictPolicyMode": {
+          "type": "boolean",
+          "description": "Require security configuration to exist and be valid",
+          "default": false
+        },
+        "enforceFilePermissions": {
+          "type": "boolean",
+          "description": "Validate file permissions according to filePermissions policy",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "filePermissions": {
+      "type": "object",
+      "description": "File permission validation rules",
+      "properties": {
+        "enforceOwnership": {
+          "type": "boolean",
+          "description": "Require proper file ownership (root for system files, user for user files)",
+          "default": false
+        },
+        "enforceReadOnly": {
+          "type": "boolean",
+          "description": "Require security config files to be read-only",
+          "default": false
+        },
+        "allowGroupWrite": {
+          "type": "boolean", 
+          "description": "Allow group write permissions on security config files",
+          "default": false
+        },
+        "requireSecureDirectories": {
+          "type": "boolean",
+          "description": "Require parent directories to have secure permissions",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Audit trail and metadata information",
+      "properties": {
+        "createdBy": {
+          "type": "string",
+          "description": "Who created this security configuration"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this configuration was created (ISO 8601)"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Purpose or description of this security configuration"
+        },
+        "version": {
+          "type": "integer",
+          "description": "Internal version number for tracking changes",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
   "examples": [
     {
+      "version": 1,
       "allowedHosts": ["github.com", "gitlab.company.com"],
       "deniedHosts": ["malicious-host.com"],
-      "strictMode": true
+      "strictMode": true,
+      "enforcement": {
+        "forceChecksumValidation": true,
+        "forceCommitTracking": true,
+        "disableAutoUpdate": true,
+        "strictPolicyMode": true
+      },
+      "filePermissions": {
+        "enforceOwnership": true,
+        "enforceReadOnly": true,
+        "allowGroupWrite": false,
+        "requireSecureDirectories": true
+      },
+      "metadata": {
+        "createdBy": "security-team",
+        "createdAt": "2025-08-31T10:00:00Z",
+        "purpose": "Production security policy",
+        "version": 1
+      }
     },
     {
+      "version": 1,
       "allowedHosts": ["github.com"],
-      "strictMode": false
+      "strictMode": false,
+      "enforcement": {
+        "forceChecksumValidation": false,
+        "strictPolicyMode": false
+      },
+      "metadata": {
+        "createdBy": "developer",
+        "purpose": "Development environment security"
+      }
     }
   ]
 }

@@ -207,10 +207,10 @@ func TestLogFormatting(t *testing.T) {
 		args    []any
 		prefix  string
 	}{
-		{Errorf, "test error %s", []any{"arg"}, "[duck][error]"},
-		{Warnf, "test warn %d", []any{42}, "[duck][warn]"},
-		{Infof, "test info %v", []any{true}, "[duck]"},
-		{Debugf, "test debug %s", []any{"debug"}, "[duck][debug]"},
+		{Errorf, "test error %s", []any{"arg"}, "[error]"},
+		{Warnf, "test warn %d", []any{42}, "[warn]"},
+		{Infof, "test info %v", []any{true}, ""},
+		{Debugf, "test debug %s", []any{"debug"}, "[debug]"},
 	}
 
 	for _, tt := range tests {

@@ -51,6 +51,12 @@ func executeTarget(target config.Target, result *PrepareTemplateResult, passthro
 // processing (variable resolution, caching, checksum validation, etc.) and then
 // executes the target's binary with the rendered template.
 func Exec(cfg *config.DuckConf, targetName string, passthrough []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+	// Log policy enforcement summary if security config is present
+	if securityCfg != nil {
+		policySummary := config.GetPolicyEnforcementSummary(securityCfg)
+		log.Infof("🔒 Security: %s", policySummary)
+	}
+
 	// Determine the effective target key
 	key, t, err := searchTarget(cfg, targetName)
 	if err != nil {
