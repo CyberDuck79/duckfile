@@ -39,9 +39,19 @@ strictMode: true
 		t.Fatalf("failed to create .duckfile directory: %v", err)
 	}
 
+	// Explicitly set directory permissions to ensure consistent behavior across environments
+	if err := os.Chmod(duckfileDir, 0700); err != nil {
+		t.Fatalf("failed to set .duckfile directory permissions: %v", err)
+	}
+
 	configPath := filepath.Join(duckfileDir, "security.yaml")
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	// Explicitly set the permissions to ensure consistent behavior across environments
+	if err := os.Chmod(configPath, 0600); err != nil {
+		t.Fatalf("failed to set config file permissions: %v", err)
 	}
 
 	// Step 3: Sign the configuration
@@ -95,13 +105,21 @@ strictMode: true
 		RequireSecureDirectories: true,
 	}
 
+	// Log file permissions for debugging
+	if info, err := os.Stat(configPath); err == nil {
+		t.Logf("Config file permissions: %o", info.Mode()&os.ModePerm)
+	}
+
 	result, err := ValidateFilePermissions(configFile, policy)
 	if err != nil {
 		t.Fatalf("failed to validate file permissions: %v", err)
 	}
 
+	t.Logf("Validation result: Valid=%v, Issues=%v, ParentDirSecure=%v, ParentDirIssues=%v", 
+		result.Valid, result.Issues, result.ParentDirSecure, result.ParentDirIssues)
+
 	if !result.Valid {
-		t.Errorf("expected file permissions to be valid, issues: %v", result.Issues)
+		t.Errorf("expected file permissions to be valid, issues: %v, parent dir issues: %v", result.Issues, result.ParentDirIssues)
 	}
 
 	t.Logf("✅ Basic security integration workflow completed successfully")
@@ -314,11 +332,21 @@ func TestSecurityFilePermissions(t *testing.T) {
 	duckfileDir := filepath.Join(tmpDir, ".duckfile")
 	os.MkdirAll(duckfileDir, 0700) // Secure directory permissions
 
+	// Explicitly set directory permissions to ensure consistent behavior across environments
+	if err := os.Chmod(duckfileDir, 0700); err != nil {
+		t.Fatalf("failed to set .duckfile directory permissions: %v", err)
+	}
+
 	configPath := filepath.Join(duckfileDir, "security.yaml")
 	configContent := `version: 1
 allowedHosts: [github.com]
 `
 	os.WriteFile(configPath, []byte(configContent), 0600) // Secure file permissions
+
+	// Explicitly set the permissions to ensure consistent behavior across environments
+	if err := os.Chmod(configPath, 0600); err != nil {
+		t.Fatalf("failed to set config file permissions: %v", err)
+	}
 
 	// Test 1: Valid permissions
 	configFile := &SecurityConfigFile{
@@ -336,13 +364,21 @@ allowedHosts: [github.com]
 		RequireSecureDirectories: true,
 	}
 
+	// Log file permissions for debugging
+	if info, err := os.Stat(configPath); err == nil {
+		t.Logf("Config file permissions: %o", info.Mode()&os.ModePerm)
+	}
+
 	result, err := ValidateFilePermissions(configFile, policy)
 	if err != nil {
 		t.Fatalf("failed to validate file permissions: %v", err)
 	}
 
+	t.Logf("Validation result: Valid=%v, Issues=%v, ParentDirSecure=%v, ParentDirIssues=%v", 
+		result.Valid, result.Issues, result.ParentDirSecure, result.ParentDirIssues)
+
 	if !result.Valid {
-		t.Errorf("expected valid permissions, got issues: %v", result.Issues)
+		t.Errorf("expected valid permissions, got issues: %v, parent dir issues: %v", result.Issues, result.ParentDirIssues)
 	}
 
 	// Test 2: World-writable file (should always be invalid)
