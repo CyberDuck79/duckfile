@@ -353,6 +353,62 @@ targets:
 
 **Precedence:** CLI environment variables > .env file > defaults
 
+## Environment Variables for Advanced Templates
+
+Duckfile automatically exposes repository and template paths as environment variables during execution, enabling advanced template workflows:
+
+```bash
+# Available in your executed commands
+echo "Repository: ${DUCK_REPO_PATH}"
+echo "Template: ${DUCK_TEMPLATE_PATH}"
+echo "Target: ${DUCK_TARGET_NAME}"
+
+# Copy repository assets
+cp -r "${DUCK_REPO_PATH}/assets" ./
+
+# Execute repository scripts  
+"${DUCK_REPO_PATH}/scripts/setup.sh"
+```
+
+**Available Variables:**
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DUCK_REPO_PATH` | Path to cloned repository | `.duck/objects/remote/abc123` |
+| `DUCK_REPO_URL` | Repository URL | `https://github.com/org/templates.git` |
+| `DUCK_REPO_REF` | Git reference used | `main` |
+| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/remote/abc123/Makefile.tpl` |
+| `DUCK_RENDERED_PATH` | Rendered template file path | `.duck/objects/rendered/def456/Makefile` |
+| `DUCK_SYMLINK_PATH` | Symlink path (what user sees) | `.duck/build/Makefile` |
+| `DUCK_TARGET_NAME` | Target name being executed | `build` |
+| `DUCK_CACHE_DIR` | Per-target cache directory | `.duck/build` |
+
+**Example Use Cases:**
+
+```yaml
+# Template that copies assets alongside rendering
+targets:
+  frontend:
+    binary: npm
+    fileFlag: --config
+    template:
+      repo: https://github.com/company/frontend-templates.git
+      path: package.json.tpl
+    args: ["run", "build"]
+    # Script can use: cp -r "${DUCK_REPO_PATH}/public/*" ./public/
+    
+  deploy:
+    binary: bash
+    fileFlag: -c
+    template:
+      repo: https://github.com/company/deploy-scripts.git  
+      path: deploy.sh.tpl
+    # Template renders to a script that references other files in the repo
+    # Script content: source "${DUCK_REPO_PATH}/common.sh"
+```
+
+See the [specification](docs/spec.md#environment-variables-for-repository-and-template-paths) for complete documentation.
+
 ## How it works
 - **Load .env files** automatically before any operation
 - Resolve variables:

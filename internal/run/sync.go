@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
 	"github.com/CyberDuck79/duckfile/internal/log"
@@ -15,6 +16,14 @@ type PrepareTemplateResult struct {
 	OldRenderedKey string // Previous rendered cache key (for cleanup)
 	RenderedKey    string // Current rendered cache key
 	RemoteKey      string // Remote cache key (stable for repo/ref/path)
+
+	// New fields for environment variables
+	RepoPath     string // Path to cloned repository
+	RepoURL      string // Repository URL
+	RepoRef      string // Git reference used
+	TemplatePath string // Source template file path
+	TargetName   string // Target name being executed
+	CacheDir     string // Per-target cache directory
 }
 
 // prepareAndRenderTemplate handles the complete template preparation workflow
@@ -62,7 +71,21 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 
 	pruneOldRendered(oldRenderedKey, paths.renderedKey)
 
-	return &PrepareTemplateResult{ObjFile: paths.renderedFile, LinkPath: paths.linkPath, OldRenderedKey: oldRenderedKey, RenderedKey: paths.renderedKey, RemoteKey: paths.remoteKey}, nil
+	return &PrepareTemplateResult{
+		ObjFile:        paths.renderedFile,
+		LinkPath:       paths.linkPath,
+		OldRenderedKey: oldRenderedKey,
+		RenderedKey:    paths.renderedKey,
+		RemoteKey:      paths.remoteKey,
+
+		// New fields for environment variables
+		RepoPath:     paths.remoteDir,
+		RepoURL:      target.Template.Repo,
+		RepoRef:      target.Template.Ref,
+		TemplatePath: paths.remoteTemplateFile,
+		TargetName:   targetName,
+		CacheDir:     filepath.Join(".duck", targetName),
+	}, nil
 }
 
 // Sync renders templates into the cache without executing the target.
