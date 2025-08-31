@@ -190,7 +190,7 @@ For supply-chain security, Duckfile supports comprehensive security configuratio
    - Project-specific: `./.duckfile/security.yaml` (read-only)
    - Files with valid digital signatures take highest precedence
 
-2. **⚡ CLI flags** (emergency admin access):
+2. **⚡ CLI flags** (high precedence when no signed config):
    ```bash
    # Root command flags
    duck build --allowed-hosts github.com,gitlab.internal.com
@@ -277,7 +277,7 @@ metadata:
 ```
 
 ### Security Rules:
-- **Precedence**: CLI flags override environment variables
+- **Precedence**: Signed configs (highest) > CLI flags > Environment variables > Unsigned configs > No restrictions (lowest)
 - **Default behavior**: If no restrictions are configured, all hosts are allowed (backward compatibility)
 - **Deny takes precedence**: Denied hosts are blocked even if they're in the allow list
 - **Strict mode**: Use `--strict-hosts` or `DUCK_STRICT_MODE=true` to fail if no restrictions are configured

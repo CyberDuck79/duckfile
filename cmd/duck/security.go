@@ -60,12 +60,12 @@ EXAMPLES
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath, _ := cmd.Flags().GetString("config")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-		
+
 		return runSecurityVerify(configPath, verbose)
 	},
 }
 
-// Security status command  
+// Security status command
 var securityStatusCmd = &cobra.Command{
 	Use:   "status [--include-permissions]",
 	Short: "Show current security configuration and enforcement status",
@@ -85,7 +85,7 @@ EXAMPLES
 	RunE: func(cmd *cobra.Command, args []string) error {
 		includePermissions, _ := cmd.Flags().GetBool("include-permissions")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-		
+
 		return runSecurityStatus(includePermissions, verbose)
 	},
 }
@@ -110,7 +110,7 @@ EXAMPLES
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fix, _ := cmd.Flags().GetBool("fix")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-		
+
 		return runSecurityCheckPermissions(fix, verbose)
 	},
 }
@@ -137,7 +137,7 @@ EXAMPLES
 	RunE: func(cmd *cobra.Command, args []string) error {
 		outputDir, _ := cmd.Flags().GetString("output-dir")
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
-		
+
 		return runSecurityGenerateKeys(outputDir, overwrite)
 	},
 }
@@ -166,7 +166,7 @@ EXAMPLES
 		configFile := args[0]
 		keyFile, _ := cmd.Flags().GetString("key-file")
 		outputDir, _ := cmd.Flags().GetString("output-dir")
-		
+
 		return runSecuritySign(configFile, keyFile, outputDir)
 	},
 }
@@ -201,12 +201,12 @@ EXAMPLES
 		project, _ := cmd.Flags().GetBool("project")
 		all, _ := cmd.Flags().GetBool("all")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		
+
 		// Default to user scope if no specific scope provided
 		if !system && !user && !project && !all {
 			user = true
 		}
-		
+
 		return runSecurityFixPermissions(system, user, project, all, dryRun)
 	},
 }
@@ -216,30 +216,30 @@ func init() {
 	// Security verify flags
 	securityVerifyCmd.Flags().StringP("config", "c", "", "Path to specific security config file to verify")
 	securityVerifyCmd.Flags().BoolP("verbose", "v", false, "Show detailed verification information")
-	
+
 	// Security status flags
 	securityStatusCmd.Flags().Bool("include-permissions", false, "Include detailed file permission information")
 	securityStatusCmd.Flags().BoolP("verbose", "v", false, "Show comprehensive security details")
-	
+
 	// Security check-permissions flags
 	securityCheckPermissionsCmd.Flags().Bool("fix", false, "Automatically fix permission violations")
 	securityCheckPermissionsCmd.Flags().BoolP("verbose", "v", false, "Show detailed permission analysis")
-	
+
 	// Security generate-keys flags
 	securityGenerateKeysCmd.Flags().String("output-dir", "", "Directory to save generated keys (default: ~/.duck/keys/)")
 	securityGenerateKeysCmd.Flags().Bool("overwrite", false, "Overwrite existing key files")
-	
+
 	// Security sign flags
 	securitySignCmd.Flags().String("key-file", "", "Path to private key file (default: ~/.duck/keys/private.key)")
 	securitySignCmd.Flags().String("output-dir", "", "Directory to save signature file (default: same as config file)")
-	
+
 	// Security fix-permissions flags
 	securityFixPermissionsCmd.Flags().Bool("system", false, "Fix system-wide configuration permissions")
 	securityFixPermissionsCmd.Flags().Bool("user", false, "Fix user-specific configuration permissions")
 	securityFixPermissionsCmd.Flags().Bool("project", false, "Fix project-specific configuration permissions")
 	securityFixPermissionsCmd.Flags().Bool("all", false, "Fix permissions for all configuration scopes")
 	securityFixPermissionsCmd.Flags().Bool("dry-run", false, "Show what would be fixed without making changes")
-	
+
 	// Add subcommands to security command
 	securityCmd.AddCommand(securityVerifyCmd)
 	securityCmd.AddCommand(securityStatusCmd)
@@ -247,7 +247,7 @@ func init() {
 	securityCmd.AddCommand(securityGenerateKeysCmd)
 	securityCmd.AddCommand(securitySignCmd)
 	securityCmd.AddCommand(securityFixPermissionsCmd)
-	
+
 	// Add security command to root
 	rootCmd.AddCommand(securityCmd)
 }
@@ -256,23 +256,23 @@ func init() {
 
 func runSecurityVerify(configPath string, verbose bool) error {
 	log.Infof("🔍 Verifying security configurations...")
-	
+
 	if configPath != "" {
 		// Verify specific config file
 		return verifySingleConfig(configPath, verbose)
 	}
-	
+
 	// Discover and verify all security configs
 	configs, err := config.DiscoverSecurityConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to discover security configurations: %w", err)
 	}
-	
+
 	if len(configs) == 0 {
 		log.Warnf("No security configurations found")
 		return nil
 	}
-	
+
 	var violations []string
 	for _, configFile := range configs {
 		if !configFile.Exists {
@@ -282,7 +282,7 @@ func runSecurityVerify(configPath string, verbose bool) error {
 			violations = append(violations, fmt.Sprintf("%s: %v", configFile.Path, err))
 		}
 	}
-	
+
 	if len(violations) > 0 {
 		log.Errorf("❌ Security verification failed:")
 		for _, violation := range violations {
@@ -290,7 +290,7 @@ func runSecurityVerify(configPath string, verbose bool) error {
 		}
 		return fmt.Errorf("security verification failed with %d violations", len(violations))
 	}
-	
+
 	log.Infof("✅ All security configurations verified successfully")
 	return nil
 }
@@ -299,46 +299,46 @@ func verifySingleConfig(configPath string, verbose bool) error {
 	if verbose {
 		log.Infof("📋 Verifying: %s", configPath)
 	}
-	
+
 	// Check if file exists and is readable
 	_, err := os.Stat(configPath)
 	if err != nil {
 		return fmt.Errorf("cannot access config file: %w", err)
 	}
-	
+
 	// Check for signature file
 	sigPath := configPath + ".sig"
 	_, sigErr := os.Stat(sigPath)
 	hasSigFile := sigErr == nil
-	
+
 	if hasSigFile {
 		if verbose {
 			log.Infof("🔐 Verifying digital signature...")
 		}
-		
+
 		// Read config and signature files
 		configData, err := os.ReadFile(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to read config file: %w", err)
 		}
-		
+
 		sigData, err := os.ReadFile(sigPath)
 		if err != nil {
 			return fmt.Errorf("failed to read signature file: %w", err)
 		}
-		
+
 		// For now, we'll need to implement signature verification
 		// This would require loading a public key
 		_ = configData
 		_ = sigData
-		
+
 		if verbose {
 			log.Infof("⚠ Signature verification not fully implemented yet")
 		}
 	} else if verbose {
 		log.Infof("ℹ️  No digital signature present")
 	}
-	
+
 	// Check file permissions - create a SecurityConfigFile for the permission check
 	configFile := &config.SecurityConfigFile{
 		Path:       configPath,
@@ -346,7 +346,7 @@ func verifySingleConfig(configPath string, verbose bool) error {
 		Readable:   true,
 		HasSigFile: hasSigFile,
 	}
-	
+
 	// Create a basic file permission policy
 	policy := &config.FilePermissionPolicy{
 		EnforceOwnership:         false, // Don't enforce specific ownership
@@ -354,59 +354,130 @@ func verifySingleConfig(configPath string, verbose bool) error {
 		AllowGroupWrite:          false, // Don't allow group write
 		RequireSecureDirectories: true,  // Require secure parent directories
 	}
-	
+
 	// Validate file permissions
 	result, err := config.ValidateFilePermissions(configFile, policy)
 	if err != nil {
 		return fmt.Errorf("permission validation failed: %w", err)
 	}
-	
+
 	if !result.Valid {
 		return fmt.Errorf("file permissions are invalid: %s", strings.Join(result.Issues, "; "))
 	}
-	
+
 	if verbose {
 		log.Infof("✅ File permissions valid")
 	}
-	
+
 	if verbose {
 		log.Infof("✅ Configuration valid")
 	}
-	
+
 	return nil
 }
 
 func runSecurityStatus(includePermissions bool, verbose bool) error {
 	log.Infof("🔍 Security Configuration Status")
 	log.Infof("")
-	
+
 	// Get security configuration using the same pattern as root.go
 	allowedHosts := []string{}
 	deniedHosts := []string{}
 	strictMode := false
-	
-	// Build effective security configuration
-	securityCfg := config.BuildSecurityConfig(allowedHosts, deniedHosts, strictMode)
-	
-	// Display source information
-	log.Infof("📊 Configuration Source: %s", securityCfg.Source)
+
+	// Get detailed precedence information
+	precedenceInfo, err := config.GetSecurityConfigPrecedenceInfo(allowedHosts, deniedHosts, strictMode)
+	if err != nil {
+		log.Warnf("⚠️  Failed to get precedence info: %v", err)
+		// Fallback to simple config building
+		securityCfg := config.BuildSecurityConfig(allowedHosts, deniedHosts, strictMode)
+
+		log.Infof("📊 Configuration Source: %s", securityCfg.Source)
+		log.Infof("")
+
+		// Display host access controls
+		log.Infof("🌐 Host Access Control:")
+		if len(securityCfg.AllowedHosts) > 0 {
+			log.Infof("   ✅ Allowed Hosts: %s", strings.Join(securityCfg.AllowedHosts, ", "))
+		} else {
+			log.Infof("   🔓 Allowed Hosts: All hosts allowed")
+		}
+
+		if len(securityCfg.DeniedHosts) > 0 {
+			log.Infof("   ❌ Denied Hosts: %s", strings.Join(securityCfg.DeniedHosts, ", "))
+		}
+
+		log.Infof("   🔒 Strict Mode: %v", securityCfg.StrictMode)
+		log.Infof("")
+
+		return nil
+	}
+
+	// Display enhanced precedence information
+	log.Infof("📊 Effective Configuration Source: %s", precedenceInfo.EffectiveSource)
+	if precedenceInfo.EffectiveConfig.SourceFile != "" {
+		log.Infof("📄 Source File: %s", precedenceInfo.EffectiveConfig.SourceFile)
+		log.Infof("🔐 Digitally Signed: %v", precedenceInfo.EffectiveConfig.IsSigned)
+	}
 	log.Infof("")
-	
+
+	// Show precedence hierarchy with available sources
+	log.Infof("📋 Precedence Hierarchy (🔒 = highest, 🔓 = lowest):")
+	precedenceOrder := []struct {
+		emoji  string
+		key    string
+		name   string
+		active bool
+	}{
+		{"🔒", "signed", "Signed Security Config Files", precedenceInfo.Sources["signed"] != nil},
+		{"⚡", "cli", "CLI flags", precedenceInfo.Sources["cli"] != nil},
+		{"🌍", "env", "Environment variables", precedenceInfo.Sources["env"] != nil},
+		{"📄", "unsigned", "Unsigned Security Config Files", precedenceInfo.Sources["unsigned"] != nil},
+		{"🔓", "none", "No restrictions", precedenceInfo.EffectiveSource == "none"},
+	}
+
+	for _, item := range precedenceOrder {
+		status := "❌ Not configured"
+		if item.active {
+			status = "✅ Available"
+			if precedenceInfo.EffectiveSource == item.key {
+				status = "✅ ACTIVE"
+			}
+		} else if item.key == "cli" {
+			status = "💡 Use CLI flags like --allowed-hosts to activate"
+		}
+		log.Infof("   %s %s: %s", item.emoji, item.name, status)
+	}
+	log.Infof("")
+
 	// Display host access controls
+	securityCfg := precedenceInfo.EffectiveConfig
 	log.Infof("🌐 Host Access Control:")
 	if len(securityCfg.AllowedHosts) > 0 {
 		log.Infof("   ✅ Allowed Hosts: %s", strings.Join(securityCfg.AllowedHosts, ", "))
 	} else {
 		log.Infof("   🔓 Allowed Hosts: All hosts allowed")
 	}
-	
+
 	if len(securityCfg.DeniedHosts) > 0 {
 		log.Infof("   ❌ Denied Hosts: %s", strings.Join(securityCfg.DeniedHosts, ", "))
 	}
-	
+
 	log.Infof("   🔒 Strict Mode: %v", securityCfg.StrictMode)
 	log.Infof("")
-	
+
+	// Display policy enforcement if available
+	if securityCfg.Enforcement != nil {
+		log.Infof("⚖️  Policy Enforcement:")
+		enforcement := securityCfg.Enforcement
+		log.Infof("   📋 Force Checksum Validation: %v", enforcement.ForceChecksumValidation)
+		log.Infof("   🔄 Force Commit Tracking: %v", enforcement.ForceCommitTracking)
+		log.Infof("   🚫 Disable Auto-Update: %v", enforcement.DisableAutoUpdate)
+		log.Infof("   🔐 Strict Policy Mode: %v", enforcement.StrictPolicyMode)
+		log.Infof("   📁 Enforce File Permissions: %v", enforcement.EnforceFilePermissions)
+		log.Infof("")
+	}
+
 	// Discover security configuration files
 	configs, err := config.DiscoverSecurityConfigs()
 	if err != nil {
@@ -425,18 +496,18 @@ func runSecurityStatus(includePermissions bool, verbose bool) error {
 		}
 		log.Infof("")
 	}
-	
+
 	// Include permission information if requested
 	if includePermissions && len(configs) > 0 {
 		log.Infof("📁 File Permissions:")
-		
+
 		policy := &config.FilePermissionPolicy{
 			EnforceOwnership:         false,
 			EnforceReadOnly:          false,
 			AllowGroupWrite:          false,
 			RequireSecureDirectories: true,
 		}
-		
+
 		results, err := config.ValidateSecurityConfigPermissions(configs, policy)
 		if err != nil {
 			log.Warnf("⚠️  Failed to validate permissions: %v", err)
@@ -454,24 +525,24 @@ func runSecurityStatus(includePermissions bool, verbose bool) error {
 		}
 		log.Infof("")
 	}
-	
+
 	return nil
 }
 
 func runSecurityCheckPermissions(fix bool, verbose bool) error {
 	log.Infof("🔍 Checking security configuration file permissions...")
-	
+
 	// Discover security configs
 	configs, err := config.DiscoverSecurityConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to discover security configurations: %w", err)
 	}
-	
+
 	if len(configs) == 0 {
 		log.Infof("ℹ️  No security configuration files found")
 		return nil
 	}
-	
+
 	// Create permission policy
 	policy := &config.FilePermissionPolicy{
 		EnforceOwnership:         false,
@@ -479,13 +550,13 @@ func runSecurityCheckPermissions(fix bool, verbose bool) error {
 		AllowGroupWrite:          false,
 		RequireSecureDirectories: true,
 	}
-	
+
 	// Validate permissions
 	results, err := config.ValidateSecurityConfigPermissions(configs, policy)
 	if err != nil {
 		return fmt.Errorf("failed to validate permissions: %w", err)
 	}
-	
+
 	var violations []*config.FilePermissionResult
 	for _, result := range results {
 		if verbose || !result.Valid {
@@ -500,12 +571,12 @@ func runSecurityCheckPermissions(fix bool, verbose bool) error {
 			}
 		}
 	}
-	
+
 	if len(violations) == 0 {
 		log.Infof("✅ All file permissions are valid")
 		return nil
 	}
-	
+
 	if fix {
 		log.Infof("🔧 Fixing permission violations...")
 		for _, violation := range violations {
@@ -518,7 +589,7 @@ func runSecurityCheckPermissions(fix bool, verbose bool) error {
 	} else {
 		log.Infof("💡 Use --fix to automatically correct permission violations")
 	}
-	
+
 	return nil
 }
 
@@ -530,42 +601,42 @@ func runSecurityGenerateKeys(outputDir string, overwrite bool) error {
 		}
 		outputDir = filepath.Join(homeDir, ".duck", "keys")
 	}
-	
+
 	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	publicKeyPath := filepath.Join(outputDir, "public.key")
 	privateKeyPath := filepath.Join(outputDir, "private.key")
-	
+
 	// Check if keys already exist
 	if !overwrite {
 		if _, err := os.Stat(privateKeyPath); err == nil {
 			return fmt.Errorf("private key already exists at %s (use --overwrite to replace)", privateKeyPath)
 		}
 	}
-	
+
 	log.Infof("🔑 Generating Ed25519 key pair...")
-	
+
 	// Generate key pair
 	keyPair, err := config.GenerateKeyPair()
 	if err != nil {
 		return fmt.Errorf("failed to generate key pair: %w", err)
 	}
-	
+
 	// Save key pair
 	if err := config.SaveKeyPair(keyPair, outputDir); err != nil {
 		return fmt.Errorf("failed to save key pair: %w", err)
 	}
-	
+
 	log.Infof("✅ Key pair generated successfully:")
 	log.Infof("   🔑 Public key:  %s", publicKeyPath)
 	log.Infof("   🔐 Private key: %s", privateKeyPath)
 	log.Infof("")
 	log.Infof("💡 Keep your private key secure and never share it!")
 	log.Infof("💡 You can share the public key for signature verification.")
-	
+
 	return nil
 }
 
@@ -578,73 +649,73 @@ func runSecuritySign(configFile, keyFile, outputDir string) error {
 		}
 		keyFile = filepath.Join(homeDir, ".duck", "keys", "private.key")
 	}
-	
+
 	// Check if config file exists
 	if _, err := os.Stat(configFile); err != nil {
 		return fmt.Errorf("config file not found: %w", err)
 	}
-	
+
 	// Check if private key exists
 	if _, err := os.Stat(keyFile); err != nil {
 		return fmt.Errorf("private key not found: %w", err)
 	}
-	
+
 	log.Infof("🔐 Signing configuration file: %s", configFile)
-	
+
 	// Load private key
 	privateKey, err := config.LoadPrivateKey(keyFile)
 	if err != nil {
 		return fmt.Errorf("failed to load private key: %w", err)
 	}
-	
+
 	// Read config file
 	configData, err := os.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
-	
+
 	// Sign the configuration
 	signature, err := config.SignConfig(configData, privateKey)
 	if err != nil {
 		return fmt.Errorf("failed to sign configuration: %w", err)
 	}
-	
+
 	// Determine signature file path
 	sigFile := configFile + ".sig"
 	if outputDir != "" {
 		sigFile = filepath.Join(outputDir, filepath.Base(configFile)+".sig")
 	}
-	
+
 	// Write signature file
 	if err := os.WriteFile(sigFile, signature, 0644); err != nil {
 		return fmt.Errorf("failed to write signature file: %w", err)
 	}
-	
+
 	log.Infof("✅ Configuration signed successfully:")
 	log.Infof("   📄 Config file: %s", configFile)
 	log.Infof("   🔐 Signature:   %s", sigFile)
-	
+
 	return nil
 }
 
 func runSecurityFixPermissions(system, user, project, all, dryRun bool) error {
 	log.Infof("🔧 Fixing security configuration file permissions...")
-	
+
 	if dryRun {
 		log.Infof("📋 DRY RUN MODE - no changes will be made")
 	}
-	
+
 	// Discover security configs
 	configs, err := config.DiscoverSecurityConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to discover security configurations: %w", err)
 	}
-	
+
 	if len(configs) == 0 {
 		log.Infof("ℹ️  No security configuration files found")
 		return nil
 	}
-	
+
 	// Filter configs based on scope flags
 	var filteredConfigs []*config.SecurityConfigFile
 	for _, cfg := range configs {
@@ -661,17 +732,17 @@ func runSecurityFixPermissions(system, user, project, all, dryRun bool) error {
 				include = project
 			}
 		}
-		
+
 		if include && cfg.Exists {
 			filteredConfigs = append(filteredConfigs, cfg)
 		}
 	}
-	
+
 	if len(filteredConfigs) == 0 {
 		log.Infof("ℹ️  No configuration files found in specified scope")
 		return nil
 	}
-	
+
 	// Create permission policy
 	policy := &config.FilePermissionPolicy{
 		EnforceOwnership:         false,
@@ -679,7 +750,7 @@ func runSecurityFixPermissions(system, user, project, all, dryRun bool) error {
 		AllowGroupWrite:          false,
 		RequireSecureDirectories: true,
 	}
-	
+
 	// Fix permissions for each config
 	fixedCount := 0
 	for _, cfg := range filteredConfigs {
@@ -688,7 +759,7 @@ func runSecurityFixPermissions(system, user, project, all, dryRun bool) error {
 			log.Errorf("❌ Failed to validate %s: %v", cfg.Path, err)
 			continue
 		}
-		
+
 		if !result.Valid {
 			if dryRun {
 				log.Infof("🔧 Would fix: %s", cfg.Path)
@@ -702,13 +773,13 @@ func runSecurityFixPermissions(system, user, project, all, dryRun bool) error {
 			}
 		}
 	}
-	
+
 	if dryRun {
 		log.Infof("📋 Dry run complete - no changes made")
 	} else {
 		log.Infof("✅ Fixed permissions for %d files", fixedCount)
 	}
-	
+
 	return nil
 }
 
@@ -717,17 +788,17 @@ func fixFilePermissions(result *config.FilePermissionResult, verbose bool) error
 	// This is a simplified implementation
 	// In a real implementation, you would parse the result.Message to determine
 	// what specific permissions need to be fixed
-	
+
 	info, err := os.Stat(result.Path)
 	if err != nil {
 		return err
 	}
-	
+
 	// Set file permissions to 0600 for config files
 	if err := os.Chmod(result.Path, 0600); err != nil {
 		return err
 	}
-	
+
 	// Fix directory permissions for the parent directory
 	dir := filepath.Dir(result.Path)
 	if err := os.Chmod(dir, 0700); err != nil {
@@ -736,7 +807,7 @@ func fixFilePermissions(result *config.FilePermissionResult, verbose bool) error
 			log.Warnf("⚠️  Could not fix directory permissions for %s: %v", dir, err)
 		}
 	}
-	
+
 	_ = info // unused for now
 	return nil
 }

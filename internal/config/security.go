@@ -12,7 +12,13 @@ import (
 
 // SecurityConfig holds comprehensive security configuration loaded from
 // environment variables, CLI flags, or configuration files to prevent supply-chain attacks.
-// Security settings are kept separate from duck.yaml to prevent attackers
+// BuildSecurityConfigWithPrecedence builds a security configuration using enhanced precedence system.
+// Precedence order (highest to lowest):
+// 1. 🔒 Signed Security Config Files (tamper-proof, highest)
+// 2. ⚡ CLI flags (high precedence when no signed config)
+// 3. 🌍 Environment variables (system-level control)
+// 4. 📄 Unsigned Security Config Files (lower to prevent bypass)
+// 5. 🔓 No restrictions (backward compatibility)rity settings are kept separate from duck.yaml to prevent attackers
 // from modifying both targets and security policies in the same commit.
 type SecurityConfig struct {
 	// Existing host restriction fields
@@ -256,14 +262,14 @@ func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 	return &config, nil
 }
 
-// BuildSecurityConfigWithFiles creates a security configuration with file-based precedence.
+// BuildSecurityConfigWithPrecedence implements the enhanced precedence system
 // Precedence order (highest to lowest):
-// 1. Signed Security Config Files (tamper-proof, highest)
-// 2. CLI flags (emergency admin access)
-// 3. Environment variables (system-level control)
-// 4. Unsigned Security Config Files (lower to prevent bypass)
-// 5. No restrictions (backward compatibility)
-func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfig, error) {
+// 1. 🔒 Signed Security Config Files (tamper-proof, highest)
+// 2. ⚡ CLI flags (high precedence when no signed config)
+// 3. 🌍 Environment variables (system-level control)
+// 4. 📄 Unsigned Security Config Files (lower to prevent bypass)
+// 5. 🔓 No restrictions (backward compatibility)
+func BuildSecurityConfigWithPrecedence(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfig, error) {
 	// Discover available security config files
 	configFiles, err := DiscoverSecurityConfigs()
 	if err != nil {
@@ -296,32 +302,24 @@ func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliSt
 	// 1. Check for signed configurations first (highest precedence)
 	if len(signedConfigs) > 0 {
 		// Use the first signed config (they were discovered in precedence order)
-		baseConfig := signedConfigs[0]
+		// Signed configs cannot be overridden - they represent the highest authority
+		return signedConfigs[0], nil
+	}
 
-		// CLI flags can still override signed configs for emergency access
-		if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
-			// Override specific fields while preserving other signed config data
-			if len(cliAllowed) > 0 {
-				baseConfig.AllowedHosts = cliAllowed
-			}
-			if len(cliDenied) > 0 {
-				baseConfig.DeniedHosts = cliDenied
-			}
-			if cliStrict {
-				baseConfig.StrictMode = cliStrict
-			}
-			baseConfig.Source = "cli" // Indicate CLI override
+	// 2. CLI flags (high precedence when no signed config exists)
+	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
+		cliConfig := &SecurityConfig{
+			AllowedHosts: cliAllowed,
+			DeniedHosts:  cliDenied,
+			StrictMode:   cliStrict,
+			Source:       "cli",
+			Version:      1,
 		}
 
-		return baseConfig, nil
+		return cliConfig, nil
 	}
 
-	// 2. CLI flags (if provided)
-	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
-		return BuildSecurityConfig(cliAllowed, cliDenied, cliStrict), nil
-	}
-
-	// 3. Environment variables
+	// 3. Environment variables (system-level control)
 	envConfig := LoadSecurityConfigFromEnv()
 	if envConfig.Source != "none" {
 		return envConfig, nil
@@ -337,6 +335,173 @@ func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliSt
 		Source:  "none",
 		Version: 1,
 	}, nil
+}
+
+// BuildSecurityConfigWithFiles implements the original precedence system for backward compatibility
+// Precedence order (highest to lowest):
+// 1. Signed Security Config Files (tamper-proof, highest)
+// 2. CLI flags (high precedence when no signed config)
+// 3. Environment variables (system-level control)
+// 4. Unsigned Security Config Files (lower to prevent bypass)
+// 5. No restrictions (backward compatibility)
+func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfig, error) {
+	return BuildSecurityConfigWithPrecedence(cliAllowed, cliDenied, cliStrict)
+}
+
+// MergeSecurityConfigs merges multiple security configurations with precedence rules
+// Higher precedence configs override lower precedence ones for specific fields
+func MergeSecurityConfigs(configs ...*SecurityConfig) *SecurityConfig {
+	if len(configs) == 0 {
+		return &SecurityConfig{
+			Source:  "none",
+			Version: 1,
+		}
+	}
+
+	// Start with the first config as base
+	merged := &SecurityConfig{
+		AllowedHosts:    make([]string, len(configs[0].AllowedHosts)),
+		DeniedHosts:     make([]string, len(configs[0].DeniedHosts)),
+		StrictMode:      configs[0].StrictMode,
+		Source:          configs[0].Source,
+		SourceFile:      configs[0].SourceFile,
+		IsSigned:        configs[0].IsSigned,
+		Signature:       configs[0].Signature,
+		Enforcement:     configs[0].Enforcement,
+		FilePermissions: configs[0].FilePermissions,
+		Metadata:        configs[0].Metadata,
+		Version:         configs[0].Version,
+	}
+	copy(merged.AllowedHosts, configs[0].AllowedHosts)
+	copy(merged.DeniedHosts, configs[0].DeniedHosts)
+
+	// Apply subsequent configs with precedence rules
+	for i := 1; i < len(configs); i++ {
+		config := configs[i]
+
+		// Override host lists if provided
+		if len(config.AllowedHosts) > 0 {
+			merged.AllowedHosts = make([]string, len(config.AllowedHosts))
+			copy(merged.AllowedHosts, config.AllowedHosts)
+		}
+		if len(config.DeniedHosts) > 0 {
+			merged.DeniedHosts = make([]string, len(config.DeniedHosts))
+			copy(merged.DeniedHosts, config.DeniedHosts)
+		}
+
+		// Always override boolean fields
+		merged.StrictMode = config.StrictMode
+
+		// Update source to reflect highest precedence source
+		merged.Source = config.Source
+
+		// Override other fields if present
+		if config.SourceFile != "" {
+			merged.SourceFile = config.SourceFile
+		}
+		if config.IsSigned {
+			merged.IsSigned = config.IsSigned
+		}
+		if config.Signature != nil {
+			merged.Signature = config.Signature
+		}
+		if config.Enforcement != nil {
+			merged.Enforcement = config.Enforcement
+		}
+		if config.FilePermissions != nil {
+			merged.FilePermissions = config.FilePermissions
+		}
+		if config.Metadata != nil {
+			merged.Metadata = config.Metadata
+		}
+		if config.Version > 0 {
+			merged.Version = config.Version
+		}
+	}
+
+	return merged
+}
+
+// GetSecurityConfigPrecedenceInfo returns detailed information about the effective configuration precedence
+func GetSecurityConfigPrecedenceInfo(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfigPrecedenceInfo, error) {
+	info := &SecurityConfigPrecedenceInfo{
+		Sources: make(map[string]*SecurityConfig),
+	}
+
+	// Discover file-based configs
+	configFiles, err := DiscoverSecurityConfigs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover security config files: %w", err)
+	}
+
+	// Load signed configs
+	for _, configFile := range configFiles {
+		if !configFile.Exists || !configFile.Readable {
+			continue
+		}
+
+		config, err := LoadSecurityConfigFromFile(configFile.Path)
+		if err != nil {
+			continue
+		}
+
+		if config.IsSigned {
+			info.Sources["signed"] = config
+			break // Use first signed config found
+		} else {
+			if info.Sources["unsigned"] == nil {
+				info.Sources["unsigned"] = config
+			}
+		}
+	}
+
+	// Check CLI config
+	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
+		cliConfig := &SecurityConfig{
+			AllowedHosts: cliAllowed,
+			DeniedHosts:  cliDenied,
+			StrictMode:   cliStrict,
+			Source:       "cli",
+			Version:      1,
+		}
+		info.Sources["cli"] = cliConfig
+	}
+
+	// Check environment config
+	envConfig := LoadSecurityConfigFromEnv()
+	if envConfig.Source != "none" {
+		info.Sources["env"] = envConfig
+	}
+
+	// Determine effective config using natural precedence rules
+	if info.Sources["signed"] != nil {
+		info.EffectiveConfig = info.Sources["signed"]
+		info.EffectiveSource = "signed"
+	} else if info.Sources["cli"] != nil {
+		info.EffectiveConfig = info.Sources["cli"]
+		info.EffectiveSource = "cli"
+	} else if info.Sources["env"] != nil {
+		info.EffectiveConfig = info.Sources["env"]
+		info.EffectiveSource = "env"
+	} else if info.Sources["unsigned"] != nil {
+		info.EffectiveConfig = info.Sources["unsigned"]
+		info.EffectiveSource = "unsigned"
+	} else {
+		info.EffectiveConfig = &SecurityConfig{
+			Source:  "none",
+			Version: 1,
+		}
+		info.EffectiveSource = "none"
+	}
+
+	return info, nil
+}
+
+// SecurityConfigPrecedenceInfo provides detailed information about configuration precedence
+type SecurityConfigPrecedenceInfo struct {
+	Sources         map[string]*SecurityConfig
+	EffectiveConfig *SecurityConfig
+	EffectiveSource string
 } // LoadSecurityConfigFromEnv loads security configuration from environment variables.
 // Environment variables used:
 //   - DUCK_ALLOWED_HOSTS: comma-separated list of allowed hostnames

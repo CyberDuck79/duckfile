@@ -179,8 +179,11 @@ Use "duck [command] --help" for more information about a command.`,
 			target = cfg.Default
 		}
 
-		// 4. Build security configuration (manual CLI parsing override or environment)
-		securityCfg := config.BuildSecurityConfig(allowedHosts, deniedHosts, strictMode)
+		// 4. Build security configuration with enhanced precedence system
+		securityCfg, err := config.BuildSecurityConfigWithPrecedence(allowedHosts, deniedHosts, strictMode)
+		if err != nil {
+			return fmt.Errorf("failed to build security configuration: %w", err)
+		}
 
 		// 5. execute with security validation
 		return runExec(cfg, target, binArgs, securityCfg, trackCommitHash, autoUpdateOnChange)
