@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	
+	"gopkg.in/yaml.v3"
 )
 
 // SecurityConfig holds comprehensive security configuration loaded from
@@ -14,10 +16,10 @@ import (
 // from modifying both targets and security policies in the same commit.
 type SecurityConfig struct {
 	// Existing host restriction fields
-	AllowedHosts []string
-	DeniedHosts  []string
-	StrictMode   bool   // Fail if no restrictions are configured
-	Source       string // "signed", "env", "cli", "unsigned", "none" for audit trail
+	AllowedHosts []string `yaml:"allowedHosts,omitempty"`
+	DeniedHosts  []string `yaml:"deniedHosts,omitempty"`
+	StrictMode   bool     `yaml:"strictMode,omitempty"` // Fail if no restrictions are configured
+	Source       string   `yaml:"source,omitempty"`     // "signed", "env", "cli", "unsigned", "none" for audit trail
 
 	// NEW: Digital signature fields
 	Signature *DigitalSignature `yaml:"signature,omitempty"`
@@ -32,9 +34,9 @@ type SecurityConfig struct {
 	Metadata *SecurityMetadata `yaml:"metadata,omitempty"`
 
 	// NEW: Source tracking for precedence
-	SourceFile string // Path to config file if loaded from file
-	IsSigned   bool   // Whether this config was verified with a valid signature
-	Version    int    `yaml:"version,omitempty"` // Configuration version
+	SourceFile string `yaml:"sourceFile,omitempty"` // Path to config file if loaded from file
+	IsSigned   bool   `yaml:"isSigned,omitempty"`   // Whether this config was verified with a valid signature
+	Version    int    `yaml:"version,omitempty"`    // Configuration version
 }
 
 // DigitalSignature holds signature verification information
@@ -170,10 +172,68 @@ func checkSecurityConfigFile(path string, fileType SecurityFileType) *SecurityCo
 }
 
 // LoadSecurityConfigFromFile loads and parses a security configuration from a YAML file
+// with optional signature verification
 func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
-	// This is a placeholder - will be implemented in Phase 2 with signature verification
-	// For now, return an error to indicate the feature is not yet implemented
-	return nil, fmt.Errorf("file-based security configuration loading not yet implemented (path: %s)", path)
+	// Read the configuration file
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read security config file %s: %w", path, err)
+	}
+	
+	// Check for signature file
+	sigPath := path + ".sig"
+	var signature []byte
+	var isSigned bool
+	
+	if _, err := os.Stat(sigPath); err == nil {
+		// Signature file exists, load it
+		signature, err = LoadSignatureFromFile(sigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load signature for %s: %w", path, err)
+		}
+		isSigned = true
+	}
+	
+	// Parse the YAML configuration
+	var config SecurityConfig
+	if err := yaml.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse security config YAML from %s: %w", path, err)
+	}
+	
+	// Set metadata from file loading
+	config.SourceFile = path
+	config.IsSigned = isSigned
+	
+	// If signed, verify the signature
+	if isSigned {
+		if config.Signature == nil {
+			return nil, fmt.Errorf("signature file exists but config has no signature metadata in %s", path)
+		}
+		
+		// Load the public key for verification
+		publicKey, err := LoadPublicKey(config.Signature.KeyId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load public key for verification of %s: %w", path, err)
+		}
+		
+		// Verify the signature
+		if err := VerifySignature(configData, signature, publicKey); err != nil {
+			return nil, fmt.Errorf("signature verification failed for %s: %w", path, err)
+		}
+		
+		// Set source to indicate this is a verified signed config
+		config.Source = "signed"
+	} else {
+		// Unsigned config file
+		config.Source = "unsigned"
+	}
+	
+	// Validate the configuration version
+	if config.Version == 0 {
+		config.Version = 1 // Default to version 1 if not specified
+	}
+	
+	return &config, nil
 }
 
 // BuildSecurityConfigWithFiles creates a security configuration with file-based precedence.
@@ -189,28 +249,75 @@ func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliSt
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover security config files: %w", err)
 	}
-
-	// For Phase 1, fall back to existing behavior
-	// File loading will be implemented in Phase 2 with signature support
-	if len(configFiles) > 0 {
-		// Log discovered files for debugging (will be removed in production)
-		var paths []string
-		for _, cfg := range configFiles {
-			status := "exists"
-			if cfg.HasSigFile {
-				status += " (signed)"
-			}
-			paths = append(paths, fmt.Sprintf("%s (%s)", cfg.Path, status))
+	
+	// Separate signed and unsigned files
+	var signedConfigs []*SecurityConfig
+	var unsignedConfigs []*SecurityConfig
+	
+	for _, configFile := range configFiles {
+		if !configFile.Exists || !configFile.Readable {
+			continue
 		}
-		// TODO: Add proper logging when log package is available
-		// For now, we'll proceed with existing CLI/env behavior
+		
+		config, err := LoadSecurityConfigFromFile(configFile.Path)
+		if err != nil {
+			// Log error but continue with other configs
+			// In production, this might be logged differently
+			continue
+		}
+		
+		if config.IsSigned {
+			signedConfigs = append(signedConfigs, config)
+		} else {
+			unsignedConfigs = append(unsignedConfigs, config)
+		}
 	}
-
-	// Use existing BuildSecurityConfig for now
-	return BuildSecurityConfig(cliAllowed, cliDenied, cliStrict), nil
-}
-
-// LoadSecurityConfigFromEnv loads security configuration from environment variables.
+	
+	// 1. Check for signed configurations first (highest precedence)
+	if len(signedConfigs) > 0 {
+		// Use the first signed config (they were discovered in precedence order)
+		baseConfig := signedConfigs[0]
+		
+		// CLI flags can still override signed configs for emergency access
+		if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
+			// Override specific fields while preserving other signed config data
+			if len(cliAllowed) > 0 {
+				baseConfig.AllowedHosts = cliAllowed
+			}
+			if len(cliDenied) > 0 {
+				baseConfig.DeniedHosts = cliDenied
+			}
+			if cliStrict {
+				baseConfig.StrictMode = cliStrict
+			}
+			baseConfig.Source = "cli" // Indicate CLI override
+		}
+		
+		return baseConfig, nil
+	}
+	
+	// 2. CLI flags (if provided)
+	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
+		return BuildSecurityConfig(cliAllowed, cliDenied, cliStrict), nil
+	}
+	
+	// 3. Environment variables
+	envConfig := LoadSecurityConfigFromEnv()
+	if envConfig.Source != "none" {
+		return envConfig, nil
+	}
+	
+	// 4. Unsigned config files (lower precedence to prevent bypass)
+	if len(unsignedConfigs) > 0 {
+		return unsignedConfigs[0], nil
+	}
+	
+	// 5. No restrictions (backward compatibility)
+	return &SecurityConfig{
+		Source:  "none",
+		Version: 1,
+	}, nil
+}// LoadSecurityConfigFromEnv loads security configuration from environment variables.
 // Environment variables used:
 //   - DUCK_ALLOWED_HOSTS: comma-separated list of allowed hostnames
 //   - DUCK_DENIED_HOSTS: comma-separated list of denied hostnames

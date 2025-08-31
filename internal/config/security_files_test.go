@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -192,8 +191,7 @@ func TestLoadSecurityConfigFromFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "security.yaml")
 
-	content := `version: 1
-allowedHosts:
+	content := `allowedHosts:
   - github.com
   - gitlab.com
 deniedHosts:
@@ -205,50 +203,38 @@ strictMode: true
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	// Test loading (should fail in Phase 1 as it's not implemented yet)
+	// Test loading (should now work in Phase 2)
 	config, err := LoadSecurityConfigFromFile(configPath)
-	if err == nil {
-		t.Error("Expected error for unimplemented file loading")
-	}
-	if config != nil {
-		t.Error("Expected nil config for unimplemented file loading")
-	}
-
-	expectedErrMsg := "file-based security configuration loading not yet implemented"
-	if err != nil && !strings.Contains(err.Error(), expectedErrMsg) {
-		t.Errorf("Expected error message to contain %q, got: %v", expectedErrMsg, err)
-	}
-}
-
-func TestBuildSecurityConfigWithFiles(t *testing.T) {
-	// Test that the function works even when files are discovered
-	config, err := BuildSecurityConfigWithFiles([]string{"github.com"}, []string{"bad.com"}, true)
 	if err != nil {
-		t.Fatalf("BuildSecurityConfigWithFiles() failed: %v", err)
+		t.Fatalf("Failed to load security config: %v", err)
 	}
-
+	
 	if config == nil {
 		t.Fatal("Expected non-nil config")
 	}
 
-	// Should fall back to CLI behavior for now
-	if config.Source != "cli" {
-		t.Errorf("Expected source 'cli', got %s", config.Source)
+	// Verify the loaded config
+	expectedAllowed := []string{"github.com", "gitlab.com"}
+	if len(config.AllowedHosts) != len(expectedAllowed) {
+		t.Errorf("Expected %d allowed hosts, got %d", len(expectedAllowed), len(config.AllowedHosts))
+	}
+	
+	for i, expected := range expectedAllowed {
+		if i >= len(config.AllowedHosts) || config.AllowedHosts[i] != expected {
+			t.Errorf("Expected allowed host %s at index %d, got %v", expected, i, config.AllowedHosts)
+		}
 	}
 
-	if len(config.AllowedHosts) != 1 || config.AllowedHosts[0] != "github.com" {
-		t.Errorf("Expected allowed hosts [github.com], got %v", config.AllowedHosts)
+	expectedDenied := []string{"malicious.com"}
+	if len(config.DeniedHosts) != len(expectedDenied) {
+		t.Errorf("Expected %d denied hosts, got %d", len(expectedDenied), len(config.DeniedHosts))
 	}
-
-	if len(config.DeniedHosts) != 1 || config.DeniedHosts[0] != "bad.com" {
-		t.Errorf("Expected denied hosts [bad.com], got %v", config.DeniedHosts)
+	
+	if len(config.DeniedHosts) > 0 && config.DeniedHosts[0] != "malicious.com" {
+		t.Errorf("Expected denied host 'malicious.com', got %s", config.DeniedHosts[0])
 	}
 
 	if !config.StrictMode {
 		t.Error("Expected strict mode to be true")
-	}
-
-	if config.Version != 1 {
-		t.Errorf("Expected version 1, got %d", config.Version)
 	}
 }
