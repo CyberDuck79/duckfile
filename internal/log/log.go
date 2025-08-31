@@ -60,34 +60,33 @@ func SetLevel(l Level) { currentLevel = l }
 func GetLevel() Level { return currentLevel }
 
 // Errorf logs an error message if the current level is Error or higher.
-// Error messages are prefixed with [duck][error].
+// Error messages are prefixed with [error].
 func Errorf(msg string, args ...any) {
 	if currentLevel >= Error {
-		fmt.Fprintf(os.Stderr, "[duck][error] %s\n", fmt.Sprintf(msg, args...))
+		fmt.Fprintf(os.Stderr, "[error] %s\n", fmt.Sprintf(msg, args...))
 	}
 }
 
 // Warnf logs a warning message if the current level is Warn or higher.
-// Warning messages are prefixed with [duck][warn].
+// Warning messages are prefixed with [warn].
 func Warnf(msg string, args ...any) {
 	if currentLevel >= Warn {
-		fmt.Fprintf(os.Stderr, "[duck][warn] %s\n", fmt.Sprintf(msg, args...))
+		fmt.Fprintf(os.Stderr, "[warn] %s\n", fmt.Sprintf(msg, args...))
 	}
 }
 
 // Infof logs an info message if the current level is Info or higher.
-// Info messages are prefixed with [duck].
 func Infof(msg string, args ...any) {
 	if currentLevel >= Info {
-		fmt.Fprintf(os.Stderr, "[duck] %s\n", fmt.Sprintf(msg, args...))
+		fmt.Fprintf(os.Stderr, "%s\n", fmt.Sprintf(msg, args...))
 	}
 }
 
 // Debugf logs a debug message if the current level is Debug or higher.
-// Debug messages are prefixed with [duck][debug].
+// Debug messages are prefixed with [debug].
 func Debugf(msg string, args ...any) {
 	if currentLevel >= Debug {
-		fmt.Fprintf(os.Stderr, "[duck][debug] %s\n", fmt.Sprintf(msg, args...))
+		fmt.Fprintf(os.Stderr, "[debug] %s\n", fmt.Sprintf(msg, args...))
 	}
 }
 
