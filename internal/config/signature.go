@@ -25,12 +25,12 @@ func GenerateKeyPair() (*SignatureKeyPair, error) {
 	}
 
 	// Generate a simple key ID based on the first 8 bytes of the public key
-	keyId := fmt.Sprintf("key-%x", publicKey[:8])
+	keyID := fmt.Sprintf("key-%x", publicKey[:8])
 
 	return &SignatureKeyPair{
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
-		KeyID:      keyId,
+		KeyID:      keyID,
 	}, nil
 }
 
@@ -83,17 +83,17 @@ func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
 }
 
 // LoadPublicKey loads a public key by key ID using the key discovery mechanism
-func LoadPublicKey(keyId string) (ed25519.PublicKey, error) {
+func LoadPublicKey(keyID string) (ed25519.PublicKey, error) {
 	// Try to find the public key in standard locations
 	keyPaths := getKeyDiscoveryPaths()
 
 	for _, basePath := range keyPaths {
 		// Try different naming conventions
 		possibleNames := []string{
-			fmt.Sprintf("%s.pub", keyId),
-			fmt.Sprintf("%s-public.key", keyId),
-			fmt.Sprintf("public-%s.key", keyId),
-			fmt.Sprintf("%s.public", keyId),
+			fmt.Sprintf("%s.pub", keyID),
+			fmt.Sprintf("%s-public.key", keyID),
+			fmt.Sprintf("public-%s.key", keyID),
+			fmt.Sprintf("%s.public", keyID),
 		}
 
 		for _, name := range possibleNames {
@@ -104,7 +104,7 @@ func LoadPublicKey(keyId string) (ed25519.PublicKey, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("public key not found for key ID %s", keyId)
+	return nil, fmt.Errorf("public key not found for key ID %s", keyID)
 }
 
 // loadPublicKeyFromFile loads a public key from a specific file path
