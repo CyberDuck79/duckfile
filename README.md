@@ -125,7 +125,14 @@ duck --no-track-commit-hash build
 
 ## Security Features
 
-Duckfile includes supply-chain security features to prevent malicious template injection:
+Duckfile includes comprehensive supply-chain security features to prevent malicious template injection and enforce organizational policies:
+
+### Phase 1-4: Comprehensive Security System
+**✅ Implemented Phases:**
+- **Phase 1**: Enhanced SecurityConfig with comprehensive validation
+- **Phase 2**: Ed25519 digital signatures for configuration integrity  
+- **Phase 3**: File permission validation and security checks
+- **Phase 4**: **Policy Enforcement Points** - Comprehensive policy validation with violation reporting
 
 ### Host Allow/Deny Lists
 Control which Git hosts can be accessed for templates. Security configurations are kept **separate from `duck.yaml`** to prevent attackers from modifying both targets and security policies together.
@@ -133,7 +140,8 @@ Control which Git hosts can be accessed for templates. Security configurations a
 **Configuration Precedence** (highest to lowest):
 1. **CLI Flags** - Override everything else
 2. **Environment Variables** - System-level defaults  
-3. **No Restrictions** - Allow all hosts (default)
+3. **Security Config File** - Centralized policy management
+4. **No Restrictions** - Allow all hosts (default)
 
 ```bash
 # CLI flags (highest precedence)
@@ -145,9 +153,37 @@ export DUCK_ALLOWED_HOSTS="github.com,gitlab.internal.com"
 export DUCK_DENIED_HOSTS="malicious-host.com" 
 export DUCK_STRICT_MODE="true"  # Fail if no restrictions configured
 
-# Then run any duck command
-duck build
-duck sync
+# Security config file (recommended for organizations)
+# Create ~/.duck/security.yaml or use --security-config flag
+duck build --security-config /etc/duck/production-security.yaml
+```
+
+### Policy Enforcement Points (Phase 4)
+Comprehensive policy validation ensures compliance with organizational security requirements:
+
+**Policy Types:**
+- **Checksum Validation**: Force all templates to have checksums
+- **Commit Tracking**: Require commit hash tracking for reproducibility  
+- **Auto-Update Control**: Override auto-update settings for stability
+- **File Permissions**: Validate file ownership and permissions
+- **Template Validation**: Ensure secure template configurations
+- **Host Access Control**: Enforce repository access policies
+
+**Policy Violation Reporting:**
+```bash
+# Policy violations are reported with detailed messages
+duck sync --security-config production-security.yaml
+
+# Example output:
+# ❌ Policy Violations Found:
+# • Template 'config-template' missing required checksum (forceChecksumValidation)
+# • Template 'app-config' has trackCommitHash=false (forceCommitTracking)  
+# • File '/etc/app/config.yaml' has insecure permissions 0644 (enforceFilePermissions)
+# 
+# 🔧 Policy Overrides Applied:
+# • Template 'dynamic-config': autoUpdateOnChange disabled (disableAutoUpdate)
+# 
+# 📊 Policy Enforcement Summary: 3 violations, 1 override, operation failed
 ```
 
 **Security Rules:**
@@ -155,8 +191,10 @@ duck sync
 - **Strict mode**: Fail if no restrictions are configured  
 - **Fast validation**: Host checking happens before git operations
 - **Case insensitive**: `GitHub.COM` matches `github.com`
+- **Policy enforcement**: Mandatory overrides ensure compliance
+- **Detailed reporting**: Clear violation messages for remediation
 
-See the [security schema](docs/security.schema.json) and [full specification](docs/spec.md) for complete details.
+See the [security schema](docs/security.schema.json), [example configurations](examples/security/), and [full specification](docs/spec.md) for complete details.
 
 ## Commit Hash Validation
 

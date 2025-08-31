@@ -1,0 +1,65 @@
+# Example duck.yaml that demonstrates policy violations
+# This configuration will trigger various policy enforcement points
+# when used with enforcement-demo.yaml security configuration
+
+targets:
+  # Violation 1: Template without checksum (when forceChecksumValidation=true)
+  config-without-checksum:
+    template: "https://github.com/example/config-template"
+    # Missing checksum - will trigger forceChecksumValidation violation
+    output: "/etc/app/config.yaml"
+    variables:
+      app_name: "demo-app"
+      environment: "staging"
+
+  # Violation 2: Template with commit tracking disabled (when forceCommitTracking=true)  
+  config-no-tracking:
+    template: "https://github.com/example/another-template"
+    checksum: "sha256:abc123..."
+    trackCommitHash: false  # Will trigger forceCommitTracking violation
+    output: "/etc/app/settings.yaml"
+    variables:
+      database_url: "postgresql://localhost/app"
+
+  # Violation 3: Template with auto-update enabled (when disableAutoUpdate=true)
+  config-auto-update:
+    template: "https://github.com/example/dynamic-template"
+    checksum: "sha256:def456..."
+    trackCommitHash: true
+    autoUpdateOnChange: true  # Will be overridden by disableAutoUpdate policy
+    output: "/etc/app/dynamic.yaml"
+    variables:
+      refresh_interval: "30s"
+
+  # Violation 4: Template accessing denied host
+  config-denied-host:
+    template: "https://malicious-host.com/evil-template"  # Will trigger host access violation
+    checksum: "sha256:suspicious..."
+    trackCommitHash: true
+    output: "/etc/app/bad-config.yaml"
+    variables:
+      malicious_setting: "value"
+
+  # Valid configuration that complies with policies
+  config-compliant:
+    template: "https://github.com/example/secure-template"
+    checksum: "sha256:valid123..."
+    trackCommitHash: true
+    autoUpdateOnChange: false  # Complies with disableAutoUpdate policy
+    output: "/etc/app/secure.yaml"
+    variables:
+      security_level: "high"
+      encryption: "enabled"
+
+# This duck.yaml demonstrates various policy violations:
+# 1. config-without-checksum: Missing checksum triggers forceChecksumValidation
+# 2. config-no-tracking: trackCommitHash=false triggers forceCommitTracking  
+# 3. config-auto-update: autoUpdateOnChange=true gets overridden by disableAutoUpdate
+# 4. config-denied-host: Uses denied host, triggers host access violation
+# 5. config-compliant: Shows proper configuration that passes all policies
+
+# When running 'duck sync' with enforcement-demo.yaml security config:
+# - Policy violations will be reported with detailed messages
+# - Mandatory overrides will be applied (autoUpdateOnChange -> false)
+# - Operations will fail for critical violations (missing checksum, denied host)
+# - Detailed policy enforcement summary will be displayed

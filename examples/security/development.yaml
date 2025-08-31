@@ -1,5 +1,6 @@
 # Development Environment Configuration  
 # This configuration provides flexibility for development while maintaining basic security
+# Demonstrates Phase 4 Policy Enforcement with relaxed policies for development
 
 version: 1
 
@@ -8,26 +9,46 @@ allowedHosts:
   - github.com
   - gitlab.com
   - bitbucket.org
-strictMode: false
+  - localhost           # Allow local development servers
+strictMode: false       # Flexible mode for development
 
 # Policy enforcement (relaxed for development)
 enforcement:
-  forceChecksumValidation: false   # Allow templates without checksums
-  forceCommitTracking: false       # Allow autoUpdateOnChange=false
-  disableAutoUpdate: false         # Allow auto-updates
-  strictPolicyMode: false          # Security config is optional
+  forceChecksumValidation: false   # Allow templates without checksums for rapid iteration
+  forceCommitTracking: false       # Allow autoUpdateOnChange=false for flexibility
+  disableAutoUpdate: false         # Allow auto-updates for convenience
+  strictPolicyMode: false          # Security config is optional in development
   enforceFilePermissions: false    # Relaxed file permission validation
 
-# File permission validation (relaxed)
+# File permission validation (relaxed for collaboration)
 filePermissions:
   enforceOwnership: false          # Don't enforce strict ownership in dev
-  enforceReadOnly: false           # Allow modifications
+  enforceReadOnly: false           # Allow modifications for development
   allowGroupWrite: true            # Allow group collaboration
   requireSecureDirectories: false  # Relaxed directory requirements
 
-# Audit metadata
+# Template validation policies (relaxed for development)
+templateValidation:
+  requireChecksum: false           # Optional checksums for development
+  requireCommitTracking: false     # Optional commit tracking
+  prohibitAutoUpdate: false        # Allow auto-updates for convenience
+
+# Repository access policies (relaxed)
+repositoryPolicies:
+  requireSignedCommits: false      # Optional signed commits in development
+  validateCertificates: true       # Still validate SSL certificates
+  enforceHostWhitelist: false      # Allow broader access for development
+
+# Development-specific overrides
+developmentOverrides:
+  allowUnsignedConfig: true        # Allow unsigned configs in development
+  verboseLogging: true             # Enable detailed policy logging
+  skipStrictValidation: true       # Skip strict validation for rapid iteration
+
+# Audit metadata for development tracking
 metadata:
   createdBy: "development-team"
   createdAt: "2025-08-31T10:00:00Z"
-  purpose: "Development environment security"
+  purpose: "Development environment security with Phase 4 enforcement"
   version: 1
+  policyVersion: "4.0-dev"         # Development version of policy enforcement

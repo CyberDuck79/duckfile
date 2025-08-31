@@ -33,6 +33,29 @@ type PrepareTemplateResult struct {
 func prepareAndRenderTemplate(targetName string, target config.Target, cfg *config.DuckConf, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*PrepareTemplateResult, error) {
 	log.Infof("🎯 prepare template for target %q", targetName)
 
+	// Validate strict policy mode requirements first
+	if err := config.ValidateStrictPolicyMode(securityCfg); err != nil {
+		return nil, fmt.Errorf("strict policy mode validation failed: %w", err)
+	}
+
+	// Enforce security policies
+	policyResult := config.EnforceSecurityPolicies(targetName, &target, securityCfg)
+	if !policyResult.Allowed {
+		violationMsg := config.FormatPolicyViolations(policyResult)
+		return nil, fmt.Errorf("security policy violations prevent execution:\n%s", violationMsg)
+	}
+
+	// Log policy warnings if any
+	if len(policyResult.Warnings) > 0 {
+		warningMsg := config.FormatPolicyViolations(policyResult)
+		log.Warnf("Security policy warnings:\n%s", warningMsg)
+	}
+
+	// Apply policy overrides to target configuration
+	modifiedTarget := config.ApplyPolicyOverrides(&target, securityCfg)
+	target = *modifiedTarget
+
+	// Existing repository access validation (kept for backward compatibility)
 	if err := config.ValidateRepoAccess(target.Template.Repo, securityCfg); err != nil {
 		return nil, fmt.Errorf("repository access denied: %w", err)
 	}
@@ -95,6 +118,12 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 // This function now shares the same template preparation logic as Exec,
 // including checksum validation, through the prepareAndRenderTemplate function.
 func Sync(cfg *config.DuckConf, targetName string, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+	// Log policy enforcement summary if security config is present
+	if securityCfg != nil {
+		policySummary := config.GetPolicyEnforcementSummary(securityCfg)
+		log.Infof("🔒 Security: %s", policySummary)
+	}
+
 	targets, err := collectTargets(cfg, targetName)
 	if err != nil {
 		return err
