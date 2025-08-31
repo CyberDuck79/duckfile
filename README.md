@@ -24,8 +24,37 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Checksum validation of remote templates
 - **Commit hash tracking and validation for reproducible builds**
 - **Host allow/deny lists for supply-chain security**
+- **Enterprise-grade security with digital signatures and access control**
 - Simple CLI that forwards args to your tool (make, task, helm, …)
 - Render-only workflow via `duck sync` when you don't want `duck` to execute your tools
+
+## Security Features
+Duck includes comprehensive security features to protect your DevOps workflows:
+
+- **🔐 Digital Signatures**: Ed25519 cryptographic signatures for configuration integrity
+- **🛡️ Host Access Control**: Allow/deny lists to prevent supply chain attacks  
+- **📁 File Permissions**: Secure configuration file handling with validation
+- **⚡ Precedence System**: 5-tier security hierarchy with signed configs taking priority
+- **🔧 Security CLI**: Complete security management command suite
+- **🌍 Environment Integration**: Secure CI/CD and automation support
+
+**Quick security setup:**
+```bash
+# Create security configuration
+mkdir -p .duckfile
+echo "version: 1
+allowedHosts: [github.com, gitlab.com]
+strictMode: true" > .duckfile/security.yaml
+
+# Check security status
+duck security status
+
+# Optional: Add digital signatures
+duck security generate-keys
+duck security sign .duckfile/security.yaml
+```
+
+📖 **[Complete Security User Guide](docs/security-user-guide.md)** - Comprehensive guide covering all security features
 
 ## Install
 ```sh
@@ -121,6 +150,27 @@ duck build --track-commit-hash
 duck sync --track-commit-hash --auto-update-on-change
 # disable tracking entirely (backward compatible)
 duck --no-track-commit-hash build
+
+# security management commands
+# check security configuration status
+duck security status
+# verify security configuration and signatures
+duck security verify
+# generate cryptographic key pairs
+duck security generate-keys
+# sign security configurations
+duck security sign .duckfile/security.yaml
+# check and fix file permissions
+duck security check-permissions
+duck security fix-permissions --all
+
+# host access control via CLI flags
+# restrict to specific hosts
+duck --allowed-hosts github.com,gitlab.com build
+# block specific hosts
+duck --denied-hosts malicious-host.com sync  
+# enforce strict host validation
+duck --strict-hosts build
 ```
 
 ## Security Features
@@ -495,6 +545,11 @@ See the [specification](docs/spec.md#environment-variables-for-repository-and-te
 
 ## Spec
 See the full specification: [docs/spec.md](docs/spec.md)
+
+## Documentation
+- **[Configuration Specification](docs/spec.md)** - Complete duck.yaml configuration reference
+- **[Security User Guide](docs/security-user-guide.md)** - Comprehensive security features guide
+- **[Security Schema](docs/security.schema.json)** - JSON schema for security configurations
 
 ## Using Duckfile without executing tools
 If you prefer Duckfile to only manage templates and never launch external binaries, omit `binary` from your targets. You can then:

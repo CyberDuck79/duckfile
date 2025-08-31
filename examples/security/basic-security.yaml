@@ -1,0 +1,22 @@
+version: 1
+
+# Basic Security Configuration
+# Perfect for getting started with Duck security features
+
+# Host access control - allow only trusted Git providers
+allowedHosts:
+  - github.com
+  - gitlab.com
+
+# Deny known malicious hosts
+deniedHosts:
+  - malicious-host.com
+
+# Enable strict mode to ensure security policies are active
+strictMode: true
+
+# Basic metadata for tracking
+metadata:
+  purpose: "Basic security configuration for Duck"
+  createdBy: "developer"
+  version: 1
