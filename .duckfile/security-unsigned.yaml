@@ -1,0 +1,22 @@
+allowedHosts:
+  - github.com
+  - gitlab.com
+  - bitbucket.org
+deniedHosts:
+  - suspicious-host.com
+strictMode: true
+enforcement:
+  forceChecksumValidation: true
+  forceCommitTracking: true
+  disableAutoUpdate: false
+  strictPolicyMode: true
+  enforceFilePermissions: true
+filePermissions:
+  enforceOwnership: false
+  enforceReadOnly: false
+  allowGroupWrite: false
+  requireSecureDirectories: true
+metadata:
+  createdBy: "duck-admin"
+  purpose: "Project-level security configuration for enhanced testing"
+  version: 1

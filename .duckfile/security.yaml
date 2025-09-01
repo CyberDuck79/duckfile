@@ -1,0 +1,25 @@
+allowedHosts:
+  - github.com
+  - gitlab.com
+deniedHosts:
+  - malicious-host.com
+  - suspicious-repo.net
+strictMode: true
+signature:
+  algorithm: "ed25519"
+  keyId: "key-76e4f76bb9e51144"
+enforcement:
+  forceChecksumValidation: true
+  forceCommitTracking: true
+  disableAutoUpdate: true
+  strictPolicyMode: true
+  enforceFilePermissions: true
+filePermissions:
+  enforceOwnership: true
+  enforceReadOnly: true
+  allowGroupWrite: false
+  requireSecureDirectories: true
+metadata:
+  createdBy: "security-admin"
+  purpose: "High-security configuration with digital signature"
+  version: 1
