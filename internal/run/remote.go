@@ -21,7 +21,7 @@ func fetchRemote(force bool, target config.Target, paths *templatePaths) error {
 	if err := os.MkdirAll(paths.remoteDir, 0o755); err != nil {
 		return err
 	}
-	repoDir, err := cloneFunc(target.Template.Repo, target.Template.Ref, paths.remoteDir)
+	repoDir, err := cloneFunc(target.Template.Repo, target.Template.Ref, paths.remoteDir, target.Template.Submodules)
 	if err != nil {
 		return err
 	}

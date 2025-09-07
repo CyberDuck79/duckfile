@@ -23,7 +23,7 @@ func TestSyncPipelineHappyPath(t *testing.T) {
 		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hello {{ .NAME }}"), 0o644)
 		// Stub clone
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		defer func() { cloneFunc = origClone }()
 		// Capture exec invocation
 		var capturedArgs []string

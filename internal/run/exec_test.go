@@ -30,7 +30,7 @@ func TestExecUnderlyingBinaryFailure(t *testing.T) {
 		os.MkdirAll(templateSrc, 0o755)
 		os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("hi"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			data, _ := os.ReadFile(filepath.Join(templateSrc, "file.tpl"))
@@ -59,7 +59,7 @@ func TestExecuteTargetArgumentOrdering(t *testing.T) {
 		os.MkdirAll(tplDir, 0o755)
 		os.WriteFile(filepath.Join(tplDir, "t.tpl"), []byte("hi"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return tplDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return tplDir, nil }
 		defer func() { cloneFunc = origClone }()
 		// capture exec invocation
 		var capturedName string
@@ -110,7 +110,7 @@ func TestExecuteTargetEnvironmentVariables(t *testing.T) {
 		os.WriteFile(templateFile, []byte("test content"), 0o644)
 
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			return repoDir, nil
 		}
 		defer func() { cloneFunc = origClone }()
@@ -251,7 +251,7 @@ func TestEnvironmentVariablesWithDefaultRef(t *testing.T) {
 		os.WriteFile(templateFile, []byte("test content"), 0o644)
 
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			return repoDir, nil
 		}
 		defer func() { cloneFunc = origClone }()

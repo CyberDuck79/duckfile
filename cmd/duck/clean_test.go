@@ -12,7 +12,7 @@ import (
 // helper to stub clone for sync before clean tests
 func stubCloneForClean(t *testing.T) {
 	saved := run.TestGetCloneFunc()
-	run.TestSetCloneFunc(func(repo, ref, intoDir string) (string, error) {
+	run.TestSetCloneFunc(func(repo, ref, intoDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(intoDir, "repo")
 		os.MkdirAll(repoDir, 0o755)
 		// minimal template names

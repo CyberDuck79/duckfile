@@ -1,3 +1,4 @@
+//nolint:errcheck
 package git
 
 import (
@@ -20,6 +21,7 @@ func run(t *testing.T, dir string, args ...string) string {
 
 // TestCloneIntoFreshAndUpdate covers fresh clone, subsequent update fetch, and commit hash retrieval.
 func TestCloneIntoFreshAndUpdate(t *testing.T) {
+	os.Setenv("GIT_ALLOW_PROTOCOL", "file")
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -30,32 +32,32 @@ func TestCloneIntoFreshAndUpdate(t *testing.T) {
 		t.Fatalf("init bare failed: %v: %s", err, string(out))
 	}
 
+	// Create seed repo
 	seed := filepath.Join(root, "seed")
 	if out, err := exec.Command("git", "init", seed).CombinedOutput(); err != nil {
 		t.Fatalf("init seed failed: %v: %s", err, string(out))
 	}
-	// Configure identity
 	run(t, seed, "config", "user.email", "tester@example.com")
 	run(t, seed, "config", "user.name", "Tester")
 
-	// Initial commit
-	readme := filepath.Join(seed, "README.md")
-	if err := os.WriteFile(readme, []byte("first"), 0o644); err != nil {
-		t.Fatalf("write readme: %v", err)
-	}
-	run(t, seed, "add", "README.md")
-	run(t, seed, "commit", "-m", "initial")
+	// Add file and commit
+	file := filepath.Join(seed, "file.txt")
+	os.WriteFile(file, []byte("first"), 0o644)
+	run(t, seed, "add", "file.txt")
+	run(t, seed, "commit", "-m", "add file.txt")
 	run(t, seed, "branch", "-M", "main")
 	run(t, seed, "remote", "add", "origin", origin)
 	run(t, seed, "push", "origin", "main")
 
 	cacheDir := filepath.Join(root, "cache")
-	workdir, err := CloneInto(origin, "main", cacheDir)
+	// Fresh clone (no submodules)
+	workdir, err := CloneInto(origin, "main", cacheDir, false)
 	if err != nil {
 		t.Fatalf("CloneInto fresh failed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(workdir, ".git")); err != nil {
-		t.Fatalf("expected .git in workdir: %v", err)
+	filePath := filepath.Join(workdir, "file.txt")
+	if _, err := os.Stat(filePath); err != nil {
+		t.Fatalf("expected file present: %v", err)
 	}
 
 	firstHash, err := GetCurrentCommitHash(workdir)
@@ -66,7 +68,8 @@ func TestCloneIntoFreshAndUpdate(t *testing.T) {
 		t.Fatalf("unexpected hash length: %d", len(firstHash))
 	}
 
-	// Second commit pushed to origin, then re-run CloneInto to trigger update path
+	// Make a change in origin repo
+	readme := filepath.Join(seed, "README.md")
 	if err := os.WriteFile(readme, []byte("second"), 0o644); err != nil {
 		t.Fatalf("update readme: %v", err)
 	}
@@ -74,10 +77,10 @@ func TestCloneIntoFreshAndUpdate(t *testing.T) {
 	run(t, seed, "commit", "-m", "second")
 	run(t, seed, "push", "origin", "main")
 
-	// Update call: repository already exists
-	workdir2, err := CloneInto(origin, "main", cacheDir)
-	if err != nil {
-		t.Fatalf("CloneInto update failed: %v", err)
+	// Update clone
+	workdir2, err2 := CloneInto(origin, "main", cacheDir, false)
+	if err2 != nil {
+		t.Fatalf("CloneInto update failed: %v", err2)
 	}
 	if workdir2 != workdir {
 		t.Fatalf("expected same workdir path on update")
@@ -90,7 +93,98 @@ func TestCloneIntoFreshAndUpdate(t *testing.T) {
 		t.Fatalf("expected different commit hash after update")
 	}
 
-	// Remote commit hash should match current (ls-remote success path)
+	remoteHash, err := GetRemoteCommitHash(origin, "main")
+	if err != nil {
+		t.Fatalf("GetRemoteCommitHash success path failed: %v", err)
+	}
+	if remoteHash != secondHash {
+		t.Fatalf("remote hash %s != checked out %s", remoteHash, secondHash)
+	}
+}
+
+// TestCloneIntoWithSubmodules verifies that submodules are cloned when submodules=true
+func TestCloneIntoWithSubmodules(t *testing.T) {
+	os.Setenv("GIT_ALLOW_PROTOCOL", "file")
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+
+	root := t.TempDir()
+	origin := filepath.Join(root, "origin.git")
+	if out, err := exec.Command("git", "init", "--bare", origin).CombinedOutput(); err != nil {
+		t.Fatalf("init bare failed: %v: %s", err, string(out))
+	}
+
+	// Create seed repo with submodule
+	seed := filepath.Join(root, "seed")
+	if out, err := exec.Command("git", "init", seed).CombinedOutput(); err != nil {
+		t.Fatalf("init seed failed: %v: %s", err, string(out))
+	}
+	run(t, seed, "config", "user.email", "tester@example.com")
+	run(t, seed, "config", "user.name", "Tester")
+
+	// Create submodule repo
+	submod := filepath.Join(root, "submod")
+	if out, err := exec.Command("git", "init", submod).CombinedOutput(); err != nil {
+		t.Fatalf("init submod failed: %v: %s", err, string(out))
+	}
+	run(t, submod, "config", "user.email", "tester@example.com")
+	run(t, submod, "config", "user.name", "Tester")
+	subfile := filepath.Join(submod, "sub.txt")
+	os.WriteFile(subfile, []byte("submodule content"), 0o644)
+	run(t, submod, "add", "sub.txt")
+	run(t, submod, "commit", "-m", "add sub.txt")
+
+	// Add submodule to seed repo
+	run(t, seed, "submodule", "add", submod, "submod")
+	run(t, seed, "commit", "-m", "add submodule")
+	run(t, seed, "branch", "-M", "main")
+	run(t, seed, "remote", "add", "origin", origin)
+	run(t, seed, "push", "origin", "main")
+
+	cacheDir := filepath.Join(root, "cache")
+	// Clone with submodules enabled
+	workdir, err := CloneInto(origin, "main", cacheDir, true)
+	if err != nil {
+		t.Fatalf("CloneInto with submodules failed: %v", err)
+	}
+	// Check that submodule directory exists and file is present
+	submodPath := filepath.Join(workdir, "submod", "sub.txt")
+	if _, err := os.Stat(submodPath); err != nil {
+		t.Fatalf("expected submodule file present: %v", err)
+	}
+
+	firstHash, err := GetCurrentCommitHash(workdir)
+	if err != nil {
+		t.Fatalf("GetCurrentCommitHash failed: %v", err)
+	}
+	if len(firstHash) != 40 {
+		t.Fatalf("unexpected hash length: %d", len(firstHash))
+	}
+
+	readme := filepath.Join(seed, "README.md")
+	if err := os.WriteFile(readme, []byte("second"), 0o644); err != nil {
+		t.Fatalf("update readme: %v", err)
+	}
+	run(t, seed, "add", "README.md")
+	run(t, seed, "commit", "-m", "second")
+	run(t, seed, "push", "origin", "main")
+
+	workdir2, err2 := CloneInto(origin, "main", cacheDir, false)
+	if err2 != nil {
+		t.Fatalf("CloneInto update failed: %v", err2)
+	}
+	if workdir2 != workdir {
+		t.Fatalf("expected same workdir path on update")
+	}
+	secondHash, err := GetCurrentCommitHash(workdir2)
+	if err != nil {
+		t.Fatalf("GetCurrentCommitHash after update failed: %v", err)
+	}
+	if secondHash == firstHash {
+		t.Fatalf("expected different commit hash after update")
+	}
+
 	remoteHash, err := GetRemoteCommitHash(origin, "main")
 	if err != nil {
 		t.Fatalf("GetRemoteCommitHash success path failed: %v", err)

@@ -44,7 +44,7 @@ func runSyncCLIWithFlags(t *testing.T, dir string, args ...string) error {
 // Stub for commit hash tracking tests
 func stubCommitHashClone(t *testing.T, content string, commitHash string) {
 	saved := getCloneFunc()
-	setCloneFunc(func(repo, ref, intoDir string) (string, error) {
+	setCloneFunc(func(repo, ref, intoDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(intoDir, "repo")
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return "", err

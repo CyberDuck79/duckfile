@@ -41,10 +41,6 @@ The wizard creates a complete duck.yaml file ready for use.`,
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInitWizard() error {
-	return runInitWizardFunc()
-}
-
 func runInitWizardImpl() error {
 	fmt.Println("Duckfile init wizard – press Enter to accept defaults or leave optional fields empty.")
 	first, name, err := runTargetWizardFunc(true)

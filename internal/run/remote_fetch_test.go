@@ -18,7 +18,7 @@ func TestFetchRemoteBasicSuccess(t *testing.T) {
 		defer restore()
 
 		repoDir := makeRepoWithTemplate(t, "tpls/a.tpl", "hello")
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "abcdef1234567890", nil }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "tpls/a.tpl"}}
@@ -47,7 +47,7 @@ func TestFetchRemoteWithChecksumSuccess(t *testing.T) {
 
 		repoDir := makeRepoWithTemplate(t, "f.tpl", "BODY")
 		sum := fmt.Sprintf("%x", sha256.Sum256([]byte("BODY")))
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: sum}}
@@ -68,7 +68,7 @@ func TestFetchRemoteChecksumMismatch(t *testing.T) {
 		defer restore()
 
 		repoDir := makeRepoWithTemplate(t, "f.tpl", "BODY")
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: "deadbeef"}}
@@ -97,7 +97,7 @@ func TestFetchRemoteForceReplacesContent(t *testing.T) {
 		repoDir2 := makeRepoWithTemplate(t, "f.tpl", "V2")
 
 		useRepo := repoDir1
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return useRepo, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return useRepo, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
@@ -128,7 +128,7 @@ func TestFetchRemoteCloneErrorPropagates(t *testing.T) {
 		restore := resetSeams(t)
 		defer restore()
 
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			return "", fmt.Errorf("clone fail")
 		}
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
@@ -152,7 +152,7 @@ func TestFetchRemoteMissingTemplatePath(t *testing.T) {
 		defer restore()
 		// Repo without the expected file
 		repoDir := makeRepoWithTemplate(t, "other.tpl", "X")
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "missing.tpl"}}
@@ -174,7 +174,7 @@ func TestFetchRemoteCommitHashCaptureFailure(t *testing.T) {
 		defer restore()
 
 		repoDir := makeRepoWithTemplate(t, "f.tpl", "hello")
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "", fmt.Errorf("git error") }
 
 		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
@@ -196,7 +196,7 @@ func TestFetchRemoteEndToEnd(t *testing.T) {
 		os.MkdirAll(repoDir, 0o755)
 		os.WriteFile(filepath.Join(repoDir, "f.tpl"), []byte("hello"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		defer func() { cloneFunc = origClone }()
 		origGetCurrent := getCurrentCommitFunc
 		getCurrentCommitFunc = func(dir string) (string, error) { return "cafebabecafebabecafebabecafebabecafebabe", nil }

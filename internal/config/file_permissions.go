@@ -263,24 +263,24 @@ func shouldSkipDirectoryValidation(dirPath string) bool {
 		"/var/tmp",
 		"/usr/tmp",
 	}
-	
+
 	for _, sysDir := range systemDirs {
 		if dirPath == sysDir {
 			return true
 		}
 	}
-	
+
 	// Skip validation for test temporary directories (Go test framework creates these)
 	// These typically have names like /tmp/TestSomething123456789/001 or /var/folders/.../TestSomething.../001
 	if strings.Contains(dirPath, "/Test") && (strings.Contains(dirPath, "/001") || strings.Contains(dirPath, "/tmp")) {
 		return true
 	}
-	
+
 	// Skip validation for macOS temporary directories created by tests
 	if strings.Contains(dirPath, "/var/folders/") && strings.Contains(dirPath, "/Test") {
 		return true
 	}
-	
+
 	return false
 }
 

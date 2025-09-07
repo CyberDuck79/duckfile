@@ -32,6 +32,8 @@ type Template struct {
 	TrackCommitHash bool `yaml:"trackCommitHash,omitempty"`
 	// If true, auto-update if commit hash changes; otherwise warn and stop. Default: false.
 	AutoUpdateOnChange bool `yaml:"autoUpdateOnChange,omitempty"`
+	// If true, fetch submodules with --recurse-submodules. Default: false.
+	Submodules bool `yaml:"submodules,omitempty"`
 }
 
 // VarKind represents the origin/behavior of a variable value.
@@ -71,6 +73,7 @@ func (v VarValue) MarshalYAML() (any, error) {
 	}
 }
 
+// UnmarshalYAML enables custom tag decoding for VarValue.
 func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 	// Custom tags we accept: !env, !cmd, !file
 	switch node.Tag {
@@ -206,6 +209,7 @@ func (c *DuckConf) Save(path string) error {
 	return os.WriteFile(path, b, 0o644)
 }
 
+// Load reads the configuration from disk as YAML.
 func Load(path string) (*DuckConf, error) {
 	log.Debugf("Reading configuration file: %s", path)
 	raw, err := os.ReadFile(path)
@@ -232,6 +236,7 @@ func Load(path string) (*DuckConf, error) {
 //	args: ["-v", "--color"]  => ["-v","--color"]
 type ArgList []string
 
+// UnmarshalYAML enables custom decoding for ArgList.
 func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Kind {
 	case yaml.ScalarNode:
@@ -371,9 +376,15 @@ func validateCommitHashTracking(template Template, targetName string) error {
 }
 
 // NewLiteralVar helper.
-func NewLiteralVar(val any) VarValue  { return VarValue{Kind: VarLiteral, Value: val} }
-func NewEnvVar(name string) VarValue  { return VarValue{Kind: VarEnv, Arg: name} }
-func NewCmdVar(cmd string) VarValue   { return VarValue{Kind: VarCmd, Arg: cmd} }
+func NewLiteralVar(val any) VarValue { return VarValue{Kind: VarLiteral, Value: val} }
+
+// NewEnvVar helper.
+func NewEnvVar(name string) VarValue { return VarValue{Kind: VarEnv, Arg: name} }
+
+// NewCmdVar helper.
+func NewCmdVar(cmd string) VarValue { return VarValue{Kind: VarCmd, Arg: cmd} }
+
+// NewFileVar helper.
 func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path} }
 
 // ValidateTarget exposes target validation rules for external callers.

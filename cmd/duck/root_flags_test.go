@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
@@ -424,5 +425,289 @@ targets:
 				}
 			}
 		})
+	}
+}
+
+// TestRootConfigFlagEqualsFormat tests --config=value format
+func TestRootConfigFlagEqualsFormat(t *testing.T) {
+	dir := t.TempDir()
+
+	customConfig := `version: 1
+default: equals-build
+targets:
+  equals-build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: equals.tpl
+`
+	if err := os.WriteFile(filepath.Join(dir, "equals.yaml"), []byte(customConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset global state
+	configPath = ""
+
+	var executedTarget string
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		executedTarget = target
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	err := runRootCLIWithFlags(t, dir, "--config=equals.yaml")
+	if err != nil {
+		t.Fatalf("root with --config=value failed: %v", err)
+	}
+
+	if executedTarget != "equals-build" {
+		t.Fatalf("expected target 'equals-build' but got %q", executedTarget)
+	}
+}
+
+// TestRootLogLevelFlagEqualsFormat tests --log-level=value format
+func TestRootLogLevelFlagEqualsFormat(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var executed bool
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		executed = true
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	err := runRootCLIWithFlags(t, dir, "--log-level=debug")
+	if err != nil {
+		t.Fatalf("root with --log-level=value failed: %v", err)
+	}
+
+	if !executed {
+		t.Fatalf("expected runExec to be called")
+	}
+}
+
+// TestRootAllowedHostsFlag tests --allowed-hosts flag parsing
+func TestRootAllowedHostsFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var capturedSecurityCfg *config.SecurityConfig
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		capturedSecurityCfg = securityCfg
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	// Test --allowed-hosts with space
+	err := runRootCLIWithFlags(t, dir, "--allowed-hosts", "github.com,gitlab.com")
+	if err != nil {
+		t.Fatalf("root with --allowed-hosts failed: %v", err)
+	}
+
+	if capturedSecurityCfg == nil {
+		t.Fatalf("expected security config to be set")
+	}
+}
+
+// TestRootAllowedHostsFlagEqualsFormat tests --allowed-hosts=value format
+func TestRootAllowedHostsFlagEqualsFormat(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var capturedSecurityCfg *config.SecurityConfig
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		capturedSecurityCfg = securityCfg
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	// Test --allowed-hosts=value
+	err := runRootCLIWithFlags(t, dir, "--allowed-hosts=github.com,gitlab.com")
+	if err != nil {
+		t.Fatalf("root with --allowed-hosts=value failed: %v", err)
+	}
+
+	if capturedSecurityCfg == nil {
+		t.Fatalf("expected security config to be set")
+	}
+}
+
+// TestRootDeniedHostsFlag tests --denied-hosts flag parsing
+func TestRootDeniedHostsFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var capturedSecurityCfg *config.SecurityConfig
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		capturedSecurityCfg = securityCfg
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	// Test --denied-hosts with space
+	err := runRootCLIWithFlags(t, dir, "--denied-hosts", "malicious.com,bad.com")
+	if err != nil {
+		t.Fatalf("root with --denied-hosts failed: %v", err)
+	}
+
+	if capturedSecurityCfg == nil {
+		t.Fatalf("expected security config to be set")
+	}
+}
+
+// TestRootDeniedHostsFlagEqualsFormat tests --denied-hosts=value format
+func TestRootDeniedHostsFlagEqualsFormat(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var capturedSecurityCfg *config.SecurityConfig
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		capturedSecurityCfg = securityCfg
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	// Test --denied-hosts=value
+	err := runRootCLIWithFlags(t, dir, "--denied-hosts=malicious.com,bad.com")
+	if err != nil {
+		t.Fatalf("root with --denied-hosts=value failed: %v", err)
+	}
+
+	if capturedSecurityCfg == nil {
+		t.Fatalf("expected security config to be set")
+	}
+}
+
+// TestRootStrictHostsFlag tests --strict-hosts flag parsing
+func TestRootStrictHostsFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	var capturedSecurityCfg *config.SecurityConfig
+	orig := runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
+		capturedSecurityCfg = securityCfg
+		return nil
+	}
+	defer func() { runExec = orig }()
+
+	// Test --strict-hosts
+	err := runRootCLIWithFlags(t, dir, "--strict-hosts")
+	if err != nil {
+		t.Fatalf("root with --strict-hosts failed: %v", err)
+	}
+
+	if capturedSecurityCfg == nil {
+		t.Fatalf("expected security config to be set")
+	}
+}
+
+// TestRootHelpFlag tests -h and --help flags
+func TestRootHelpFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: file.tpl
+`)
+
+	// Reset global state
+	configPath = ""
+
+	// Test -h flag
+	err := runRootCLIWithFlags(t, dir, "-h")
+	if err != nil {
+		t.Fatalf("root with -h failed: %v", err)
+	}
+
+	// Test --help flag
+	err = runRootCLIWithFlags(t, dir, "--help")
+	if err != nil {
+		t.Fatalf("root with --help failed: %v", err)
 	}
 }

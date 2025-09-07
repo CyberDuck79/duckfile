@@ -78,7 +78,7 @@ func TestAllowMissingVsStrict(t *testing.T) {
 		os.WriteFile(filepath.Join(templateSrc, "f.tpl"), []byte("A={{ .VAR1 }} B={{ .VAR2 }}"), 0o644)
 		// stub clone
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			b, _ := os.ReadFile(filepath.Join(templateSrc, "f.tpl"))
