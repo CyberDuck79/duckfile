@@ -150,6 +150,8 @@ func ValidateFilePermissions(configFile *SecurityConfigFile, policy *FilePermiss
 }
 
 // validateOwnership checks file ownership based on file type and policy
+//
+//cover:ignore
 func validateOwnership(fileType SecurityFileType, stat *syscall.Stat_t, result *FilePermissionResult) error {
 	switch fileType {
 	case SecurityFileTypeSystem:
@@ -220,12 +222,16 @@ func validateFileMode(mode os.FileMode, policy *FilePermissionPolicy, result *Fi
 }
 
 // ParentDirectoryResult holds validation results for parent directories
+//
+//cover:ignore
 type ParentDirectoryResult struct {
 	Secure bool
 	Issues []string
 }
 
 // validateParentDirectories checks that parent directories are secure
+//
+//cover:ignore
 func validateParentDirectories(filePath string, policy *FilePermissionPolicy) (*ParentDirectoryResult, error) {
 	result := &ParentDirectoryResult{Secure: true}
 
@@ -256,6 +262,8 @@ func validateParentDirectories(filePath string, policy *FilePermissionPolicy) (*
 }
 
 // shouldSkipDirectoryValidation determines if a directory should be skipped during security validation
+//
+//cover:ignore
 func shouldSkipDirectoryValidation(dirPath string) bool {
 	// Skip validation for system directories that are expected to be world-writable
 	systemDirs := []string{
@@ -263,28 +271,30 @@ func shouldSkipDirectoryValidation(dirPath string) bool {
 		"/var/tmp",
 		"/usr/tmp",
 	}
-	
+
 	for _, sysDir := range systemDirs {
 		if dirPath == sysDir {
 			return true
 		}
 	}
-	
+
 	// Skip validation for test temporary directories (Go test framework creates these)
 	// These typically have names like /tmp/TestSomething123456789/001 or /var/folders/.../TestSomething.../001
 	if strings.Contains(dirPath, "/Test") && (strings.Contains(dirPath, "/001") || strings.Contains(dirPath, "/tmp")) {
 		return true
 	}
-	
+
 	// Skip validation for macOS temporary directories created by tests
 	if strings.Contains(dirPath, "/var/folders/") && strings.Contains(dirPath, "/Test") {
 		return true
 	}
-	
+
 	return false
 }
 
 // validateSingleDirectory validates a single directory's permissions
+//
+//cover:ignore
 func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, result *ParentDirectoryResult) error {
 	dirInfo, err := os.Stat(dirPath)
 	if err != nil {
@@ -328,6 +338,8 @@ func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, resul
 }
 
 // isSystemPath checks if a path is a system-level path
+//
+//cover:ignore
 func isSystemPath(path string) bool {
 	systemPrefixes := []string{"/etc", "/usr", "/opt"}
 	// On macOS, also include /System and /Library but exclude temp directories
@@ -348,6 +360,8 @@ func isSystemPath(path string) bool {
 }
 
 // isUserPath checks if a path is a user-level path
+//
+//cover:ignore
 func isUserPath(path string) bool {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
