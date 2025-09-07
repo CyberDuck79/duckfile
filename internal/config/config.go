@@ -55,8 +55,6 @@ type VarValue struct {
 }
 
 // MarshalYAML enables preserving custom tags when writing config files.
-//
-//cover:ignore
 func (v VarValue) MarshalYAML() (any, error) {
 	switch v.Kind {
 	case VarEnv:
@@ -75,7 +73,7 @@ func (v VarValue) MarshalYAML() (any, error) {
 	}
 }
 
-//cover:ignore
+// UnmarshalYAML enables custom tag decoding for VarValue.
 func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 	// Custom tags we accept: !env, !cmd, !file
 	switch node.Tag {
@@ -197,8 +195,6 @@ type DuckConf struct {
 }
 
 // Save writes the configuration to disk as YAML.
-//
-//cover:ignore
 func (c *DuckConf) Save(path string) error {
 	if c.Version == 0 {
 		c.Version = 1
@@ -213,7 +209,7 @@ func (c *DuckConf) Save(path string) error {
 	return os.WriteFile(path, b, 0o644)
 }
 
-//cover:ignore
+// Load reads the configuration from disk as YAML.
 func Load(path string) (*DuckConf, error) {
 	log.Debugf("Reading configuration file: %s", path)
 	raw, err := os.ReadFile(path)
@@ -240,7 +236,7 @@ func Load(path string) (*DuckConf, error) {
 //	args: ["-v", "--color"]  => ["-v","--color"]
 type ArgList []string
 
-//cover:ignore
+// UnmarshalYAML enables custom decoding for ArgList.
 func (a *ArgList) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Kind {
 	case yaml.ScalarNode:
@@ -380,17 +376,15 @@ func validateCommitHashTracking(template Template, targetName string) error {
 }
 
 // NewLiteralVar helper.
-//
-//cover:ignore
 func NewLiteralVar(val any) VarValue { return VarValue{Kind: VarLiteral, Value: val} }
 
-//cover:ignore
+// NewEnvVar helper.
 func NewEnvVar(name string) VarValue { return VarValue{Kind: VarEnv, Arg: name} }
 
-//cover:ignore
+// NewCmdVar helper.
 func NewCmdVar(cmd string) VarValue { return VarValue{Kind: VarCmd, Arg: cmd} }
 
-//cover:ignore
+// NewFileVar helper.
 func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path} }
 
 // ValidateTarget exposes target validation rules for external callers.

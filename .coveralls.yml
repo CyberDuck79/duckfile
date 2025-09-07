@@ -1,5 +1,0 @@
-service_name: github
-repo_token: ${COVERALLS_REPO_TOKEN}
-exclude_patterns:
-  - internal/run/test_seams.go
-  - cmd/duck/wizard.go

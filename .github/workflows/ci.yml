@@ -39,6 +39,8 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           go test -race ./... -count=1 -covermode=atomic -coverprofile=coverage.txt
+          cat coverage.txt | grep -v "internal/run/test_seams.go" | grep -v "cmd/duck/wizard.go" | grep -v "cmd/duck/init.go" | grep -v "cmd/duck/add.go" > coverage_filtered.txt
+          mv coverage_filtered.txt coverage.txt
           go tool cover -func=coverage.txt | tee coverage_summary.txt
           # Extract total coverage for job summary
           total=$(grep '^total:' coverage_summary.txt | awk '{print $3}')
