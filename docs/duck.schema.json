@@ -42,6 +42,7 @@
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         },
         "renderedPath": { "type": "string" },
+        "copyRendered": { "type": "boolean", "description": "If true, rendered file is copied instead of symlinked. Must specify renderedPath." },
         "args": {
           "oneOf": [
             { "type": "string" },
@@ -67,6 +68,10 @@
           "then": {
             "required": ["fileFlag"]
           }
+        },
+        {
+          "if": { "properties": { "copyRendered": { "const": true } } },
+          "then": { "required": ["renderedPath"] }
         }
       ]
     },

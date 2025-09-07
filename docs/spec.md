@@ -30,7 +30,8 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `fileFlag` | String | Cond. | Required when `binary` is set. CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
 | `template` | Template object | ✔ | Where to find the template file. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
-| `renderedPath` | String | ✖ | Destination path used by the tool. Default: `.duck/<target>/<basename>`. |
+| `renderedPath` | String | ✖/✔ | Destination path used by the tool. Default: `.duck/<target>/<basename>`. **Required if `copyRendered: true`.** |
+| `copyRendered` | Boolean | ✖ | If true, the rendered file is copied to `renderedPath` instead of symlinked. Use for pushable configs or environments without symlink support. |
 | `args` | String or String[] | Cond. | Allowed only when `binary` is set. Default extra arguments always passed to the binary before user-provided ones. |
 
 ## 4. Template object
@@ -234,59 +235,75 @@ Security configuration files are discovered in the following order (highest to l
 
 **Note**: Digital signatures (`.sig` files) are checked alongside configuration files. Signed configurations always take precedence over unsigned ones at the same hierarchy level.
 
-### Example Security Configuration
 
+signature:
+**Example `duck.yaml` configuration:**
 ```yaml
 version: 1
 
-# Digital signature (populated during signing process)
-signature:
-  algorithm: ed25519
-  keyId: "security-admin-key-1"
-  signature: "base64-encoded-signature"
-
-# Host access control
-allowedHosts:
-  - github.com
-  - gitlab.internal.com
-deniedHosts:
-  - malicious-host.com
-strictMode: true
-
-# Policy enforcement
-enforcement:
-  forceChecksumValidation: true    # Fail if template has no checksum
-  forceCommitTracking: true        # Fail if trackCommitHash=false
-  disableAutoUpdate: true          # Override autoUpdateOnChange settings
-  strictPolicyMode: true           # Require security config to exist
-
-# File permission validation
-filePermissions:
-  enforceOwnership: true           # Require proper ownership
-  enforceReadOnly: true            # Require read-only permissions
-  allowGroupWrite: false           # No group write access
-  requireSecureDirectories: true   # Parent dirs must be secure
-
-# Audit metadata
-metadata:
-  createdBy: "security-team"
-  createdAt: "2025-08-31T10:00:00Z"
-  purpose: "Production security policy"
-  version: 1
-```
-
-### Security Rules:
-- **Precedence**: Signed configs (highest) > CLI flags > Environment variables > Unsigned configs > No restrictions (lowest)
-- **Default behavior**: If no restrictions are configured, all hosts are allowed (backward compatibility)
-- **Deny takes precedence**: Denied hosts are blocked even if they're in the allow list
-- **Strict mode**: Use `--strict-hosts` or `DUCK_STRICT_MODE=true` to fail if no restrictions are configured
-- **Case insensitive**: Host matching is case-insensitive (`GitHub.COM` matches `github.com`)
-- **Exact matching**: Currently supports exact hostname matching (wildcards planned for future)
-- **Validation timing**: Host validation occurs before git operations, providing fast feedback
-
-### Security Best Practices:
 - Set restrictions in environment variables that require elevated privileges to modify
+
 - Use deny lists for known malicious hosts
+  build:
+    binary: make
+    fileFlag: -f
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: Makefile.tpl
+      checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      trackCommitHash: true
+      autoUpdateOnChange: true
+    variables:
+      PROJECT: my-service
+      DATE: !cmd date +%Y-%m-%d
+    renderedPath: Makefile
+
+  config-copy:
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: config.yaml.tpl
+    variables:
+      ENV: production
+    renderedPath: config.yaml
+    copyRendered: true
+
+  self:
+    # Special target: updates the current config file from remote
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+      ref: main
+      path: duck.yaml.tpl
+    variables:
+      VERSION: 1.0.0
+    # renderedPath is always the current config file path
+    # copyRendered is always true for self
+
+  docs:
+    # No binary: this target is sync-only. Use `duck sync docs` to render.
+    template:
+      repo: https://github.com/CyberDuck79/duckfile-test-docs-templates.git
+      ref: main
+      path: index.md.tpl
+    variables:
+      AUTHOR: Cyberduck
+
+settings:
+  logLevel: debug
+  trackCommitHash: false  # Global default (can be overridden per-template)
+  autoUpdateOnChange: false
+```
+## Symlink vs Copy Behavior
+
+By default, Duckfile creates a symlink at `renderedPath` pointing to the rendered cache file. This is efficient and keeps a single source of truth.
+
+Set `copyRendered: true` to copy the rendered file to `renderedPath` instead of symlinking. Use this when:
+- You need to commit/push the config file to a remote repository
+- Your environment does not support symlinks (e.g., Windows, some CI/CD systems)
+- You want the config file to be a regular file, not a link
+
+The `self` target always uses copy mode and updates the current config file directly.
 - Use allow lists in high-security environments to limit to trusted hosts only  
 - Enable strict mode in CI/CD environments to ensure policies are always applied
 - Regularly audit allowed hosts and remove unused entries
