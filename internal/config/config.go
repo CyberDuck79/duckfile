@@ -130,6 +130,7 @@ type Target struct {
 	Template     Template            `yaml:"template"`
 	Variables    map[string]VarValue `yaml:"variables,omitempty"`
 	RenderedPath string              `yaml:"renderedPath,omitempty"`
+	CopyRendered bool                `yaml:"copyRendered,omitempty"` // If true, copy instead of symlink. RenderedPath required.
 	Args         ArgList             `yaml:"args,omitempty"`
 }
 
@@ -325,6 +326,11 @@ func validateTarget(t Target, name string) error {
 		if strings.TrimSpace(t.FileFlag) == "" {
 			return fmt.Errorf("target %q: fileFlag is required when binary is set", name)
 		}
+	}
+
+	// If CopyRendered is true, RenderedPath must be set
+	if t.CopyRendered && strings.TrimSpace(t.RenderedPath) == "" {
+		return fmt.Errorf("target %q: renderedPath is required when copyRendered is true", name)
 	}
 
 	// Validate commit hash tracking configuration

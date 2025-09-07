@@ -2,11 +2,54 @@ package run
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
 	"github.com/CyberDuck79/duckfile/internal/log"
 )
+
+// copyRendered copies the rendered file to the target path, replacing any existing file or symlink.
+func copyRendered(src, dst string) error {
+	// Ensure parent dir of dst exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	// Remove existing file/symlink
+	if _, err := os.Lstat(dst); err == nil {
+		if err := os.Remove(dst); err != nil {
+			return err
+		}
+	}
+	// Copy file contents
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cerr := in.Close()
+		if cerr != nil {
+			log.Warnf("error closing input file: %v", cerr)
+		}
+	}()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cerr := out.Close()
+		if cerr != nil {
+			log.Warnf("error closing output file: %v", cerr)
+		}
+	}()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ...existing code...
 
 // PrepareTemplateResult holds the results of template preparation
 // shared between Exec and Sync operations
@@ -87,13 +130,40 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		return nil, err
 	}
 
+	// Determine if we should copy instead of symlink
+	isSelf := targetName == "self"
+	if isSelf || target.CopyRendered {
+		// For self, always copy to config file path
+		dst := paths.linkPath
+		// Removed empty if isSelf branch (was linter warning)
+		if err := copyRendered(paths.renderedFile, dst); err != nil {
+			return nil, err
+		}
+		log.Infof("📄 copied rendered file to %s", dst)
+		// No symlink, so oldRenderedKey is empty
+		pruneOldRendered("", paths.renderedKey)
+		return &PrepareTemplateResult{
+			ObjFile:        paths.renderedFile,
+			LinkPath:       dst,
+			OldRenderedKey: "",
+			RenderedKey:    paths.renderedKey,
+			RemoteKey:      paths.remoteKey,
+
+			// New fields for environment variables
+			RepoPath:     paths.remoteDir,
+			RepoURL:      target.Template.Repo,
+			RepoRef:      target.Template.Ref,
+			TemplatePath: paths.remoteTemplateFile,
+			TargetName:   targetName,
+			CacheDir:     filepath.Join(".duck", targetName),
+		}, nil
+	}
+
 	oldRenderedKey, err := linkRendered(paths)
 	if err != nil {
 		return nil, err
 	}
-
 	pruneOldRendered(oldRenderedKey, paths.renderedKey)
-
 	return &PrepareTemplateResult{
 		ObjFile:        paths.renderedFile,
 		LinkPath:       paths.linkPath,
