@@ -87,7 +87,6 @@
         },
         "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
-        "shallow": { "type": "boolean" },
         "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
         "trackCommitHash": { "type": "boolean" },
         "autoUpdateOnChange": { "type": "boolean" }
