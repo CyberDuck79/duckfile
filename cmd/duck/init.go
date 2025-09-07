@@ -49,11 +49,78 @@ func runInitWizardImpl() error {
 	}
 	// Build config with default key referencing first target
 	cfg := &config.DuckConf{Version: 1, Default: name, Targets: map[string]config.Target{name: first}}
+
+	// Ask about global settings
+	fmt.Println("\n--- Global Settings (optional) ---")
+	reader := bufio.NewReader(os.Stdin)
+	ask := func(prompt string) (string, error) {
+		fmt.Print(prompt)
+		txt, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(txt), nil
+	}
+	askBool := func(prompt string) (bool, error) {
+		resp, err := ask(prompt)
+		if err != nil {
+			return false, err
+		}
+		return strings.HasPrefix(strings.ToLower(resp), "y"), nil
+	}
+
+	configureSettings, err := askBool("Configure global settings? (y/N) [cache, logging, security defaults]: ")
+	if err != nil {
+		return err
+	}
+
+	if configureSettings {
+		settings := &config.Settings{}
+
+		cacheDir, err := ask("Cache directory [.duck/objects]: ")
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(cacheDir) != "" {
+			settings.CacheDir = cacheDir
+		}
+
+		logLevel, err := ask("Log level (error/warn/info/debug) [info]: ")
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(logLevel) != "" {
+			settings.LogLevel = logLevel
+		}
+
+		locked, err := askBool("Locked mode? (y/N) [prevents updates when templates change]: ")
+		if err != nil {
+			return err
+		}
+		settings.Locked = locked
+
+		globalTrack, err := askBool("Global commit tracking default? (y/N) [applies to all targets without explicit setting]: ")
+		if err != nil {
+			return err
+		}
+		settings.TrackCommitHash = globalTrack
+
+		var globalAutoUpdate bool
+		if globalTrack {
+			globalAutoUpdate, err = askBool("Global auto-update default? (y/N) [applies to all targets without explicit setting]: ")
+			if err != nil {
+				return err
+			}
+			settings.AutoUpdateOnChange = globalAutoUpdate
+		}
+
+		cfg.Settings = settings
+	}
+
 	if err := cfg.Save("duck.yaml"); err != nil {
 		return err
 	}
 	fmt.Printf("Created duck.yaml with default target '%s'.\n", name)
-	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("Add another target? (y/N): ")
 		resp, _ := reader.ReadString('\n')
