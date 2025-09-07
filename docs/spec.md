@@ -43,7 +43,6 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `delims` | Object `{left,right}` | ✖ | Override Go template delimiters (`{{` / `}}` by default). |
 | `allowMissing` | Boolean | ✖ | If `true`, missing keys render as zero values (empty strings). Default `false` (strict). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
-| `shallow` | Boolean | ✖ | Shallow clone (`--depth 1`). Default `true`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. If provided, Duckfile will validate the fetched template file against this checksum. |
 | `trackCommitHash` | Boolean | ✖ | Enable commit hash validation and tracking. When `true`, Duckfile stores the actual commit hash after fetching and validates it hasn't changed on subsequent runs. Default `false`. **Note: Cannot be used with commit hash refs (40-character hex strings).** |
 | `autoUpdateOnChange` | Boolean | ✖ | Automatically update cache when remote commit hash changes. Only valid when `trackCommitHash` is `true`. Default `false`. When enabled, cache is automatically invalidated and re-fetched if the remote commit hash differs from the stored value. |
@@ -617,7 +616,6 @@ Checksum validation is optional. If no checksum is provided, Duckfile will proce
         },
         "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
-        "shallow": { "type": "boolean" },
         "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
         "trackCommitHash": { "type": "boolean" },
         "autoUpdateOnChange": { "type": "boolean" }
@@ -664,3 +662,6 @@ Checksum validation is optional. If no checksum is provided, Duckfile will proce
 ## 15. Migration rules
 Future changes will be announced with a version bump; for MVP users, no migration is required.
 
+## 16. Changelog Notes
+
+Removed previously documented but unimplemented `shallow` option. Repository operations always use a shallow clone (`--depth 1`) for performance. A future version may reintroduce a configurable depth if legitimate use cases requiring full history arise (e.g., history-based templating or tag ancestry resolution).
