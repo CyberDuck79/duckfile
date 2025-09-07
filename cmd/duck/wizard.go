@@ -27,18 +27,28 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 		}
 		return strings.HasPrefix(strings.ToLower(resp), "y"), nil
 	}
+	// Helper function to ask for required input with retry loop
+	askRequired := func(prompt, fieldName string) (string, error) {
+		for {
+			value, err := ask(prompt)
+			if err != nil {
+				return "", err
+			}
+			if value != "" {
+				return value, nil
+			}
+			fmt.Printf("Error: %s cannot be empty. Please try again.\n", fieldName)
+		}
+	}
 	var name string
 	var err error
 	if isDefault {
-		name, err = ask("Default target key (called when <target> is not specified): ")
+		name, err = askRequired("Default target key (called when <target> is not specified): ", "target key")
 	} else {
-		name, err = ask("Target key (CLI name): ")
+		name, err = askRequired("Target key (CLI name): ", "target key")
 	}
 	if err != nil {
 		return config.Target{}, "", err
-	}
-	if name == "" {
-		return config.Target{}, "", fmt.Errorf("target key cannot be empty")
 	}
 
 	// Target description
@@ -53,9 +63,16 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 	var fileFlag string
 	var args []string
 	if strings.TrimSpace(binary) != "" {
-		fileFlag, err = ask("fileFlag (e.g. -f, --taskfile) [optional if binary expects path implicitly]: ")
-		if err != nil {
-			return config.Target{}, "", err
+		// FileFlag is required when binary is set - validate immediately
+		for {
+			fileFlag, err = ask("fileFlag (e.g. -f, --taskfile) [required when binary is set]: ")
+			if err != nil {
+				return config.Target{}, "", err
+			}
+			if strings.TrimSpace(fileFlag) != "" {
+				break
+			}
+			fmt.Println("Error: fileFlag is required when binary is set. Please try again.")
 		}
 
 		// Default arguments
@@ -80,27 +97,37 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 		if err != nil {
 			return config.Target{}, "", err
 		}
-		if copyRendered && strings.TrimSpace(renderedPath) == "" {
-			return config.Target{}, "", fmt.Errorf("renderedPath is required when copyRendered is true")
+	} else {
+		// If renderedPath is empty, ask if they want to copy rendered
+		copyRendered, err = askBool("Copy rendered file instead of symlink? (y/N) [useful for pushable configs]: ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		// If they want to copy but didn't provide a path, require it
+		if copyRendered {
+			for {
+				renderedPath, err = ask("Rendered path is required when copyRendered is true: ")
+				if err != nil {
+					return config.Target{}, "", err
+				}
+				if strings.TrimSpace(renderedPath) != "" {
+					break
+				}
+				fmt.Println("Error: renderedPath cannot be empty when copyRendered is true. Please try again.")
+			}
 		}
 	}
-	repo, err := ask("Template repo (git URL): ")
+	repo, err := askRequired("Template repo (git URL): ", "repo")
 	if err != nil {
 		return config.Target{}, "", err
-	}
-	if repo == "" {
-		return config.Target{}, "", fmt.Errorf("repo is required")
 	}
 	ref, err := ask("Template ref (branch/tag/commit) [HEAD]: ")
 	if err != nil {
 		return config.Target{}, "", err
 	}
-	path, err := ask("Template path inside repo (e.g. Makefile.tpl): ")
+	path, err := askRequired("Template path inside repo (e.g. Makefile.tpl): ", "template path")
 	if err != nil {
 		return config.Target{}, "", err
-	}
-	if path == "" {
-		return config.Target{}, "", fmt.Errorf("template path is required")
 	}
 	if !strings.HasSuffix(path, ".tpl") {
 		fmt.Println("(note) It's common to suffix template files with .tpl for clarity.")
