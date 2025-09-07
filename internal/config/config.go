@@ -32,6 +32,8 @@ type Template struct {
 	TrackCommitHash bool `yaml:"trackCommitHash,omitempty"`
 	// If true, auto-update if commit hash changes; otherwise warn and stop. Default: false.
 	AutoUpdateOnChange bool `yaml:"autoUpdateOnChange,omitempty"`
+	// If true, fetch submodules with --recurse-submodules. Default: false.
+	Submodules bool `yaml:"submodules,omitempty"`
 }
 
 // VarKind represents the origin/behavior of a variable value.

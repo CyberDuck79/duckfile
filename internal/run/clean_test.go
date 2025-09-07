@@ -19,7 +19,7 @@ func TestCleanRemovesOnlyTargetArtifacts(t *testing.T) {
 		os.MkdirAll(templateSrc, 0o755)
 		os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("content {{ .V }}"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			b, _ := os.ReadFile(filepath.Join(templateSrc, "file.tpl"))

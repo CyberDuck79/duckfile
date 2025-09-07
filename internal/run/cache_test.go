@@ -50,7 +50,7 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 		os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("hello {{ .NAME }}"), 0o644)
 		// stub clone copies current template file
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			b, _ := os.ReadFile(filepath.Join(templateSrc, "file.tpl"))
@@ -91,7 +91,7 @@ func TestSyncIdempotentWithoutForce(t *testing.T) {
 		os.MkdirAll(templateSrc, 0o755)
 		os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("v1 {{ .NAME }}"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			b, _ := os.ReadFile(filepath.Join(templateSrc, "file.tpl"))
@@ -131,7 +131,7 @@ func TestSyncForceReRendersSameKey(t *testing.T) {
 		os.MkdirAll(templateSrc, 0o755)
 		os.WriteFile(filepath.Join(templateSrc, "file.tpl"), []byte("force1 {{ .NAME }}"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 			dst := filepath.Join(cacheDir, "repo")
 			os.MkdirAll(dst, 0o755)
 			b, _ := os.ReadFile(filepath.Join(templateSrc, "file.tpl"))
@@ -317,7 +317,7 @@ func TestPrepareTemplatePrunesOldRenderedCache(t *testing.T) {
 
 		// Stub clone
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		defer func() { cloneFunc = origClone }()
 
 		// Initial target/config
@@ -383,7 +383,7 @@ func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
 		// Mock clone
 		origClone := cloneFunc
 		cloneCalls := 0
-		cloneFunc = func(repo, ref, cacheDir string) (string, error) { cloneCalls++; return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { cloneCalls++; return repoDir, nil }
 		defer func() { cloneFunc = origClone }()
 
 		target := config.Target{Template: config.Template{Repo: "https://example/repo.git", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("Alice")}, RenderedPath: "out.txt"}

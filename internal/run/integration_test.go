@@ -40,7 +40,7 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 
 	// stub cloneFunc to copy templateDir into cacheDir/repo
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		data, _ := os.ReadFile(filepath.Join(templateDir, "file.tpl"))
@@ -111,7 +111,7 @@ func TestChecksumValidation(t *testing.T) {
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": target}}
 
 	// Override cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
@@ -133,7 +133,7 @@ func TestChecksumValidation(t *testing.T) {
 
 	// Change template file to break checksum (remove remote cache to force refetch)
 	tampered := []byte("tampered")
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
@@ -146,7 +146,7 @@ func TestChecksumValidation(t *testing.T) {
 		t.Fatalf("expected checksum error, got nil")
 	}
 	// Restore cloneFunc for next test
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
@@ -206,7 +206,7 @@ func TestChecksumValidationSync(t *testing.T) {
 	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": target}}
 
 	// Override cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
@@ -225,7 +225,7 @@ func TestChecksumValidationSync(t *testing.T) {
 
 	// Change template file to break checksum (remove remote cache to force refetch)
 	tampered := []byte("tampered content")
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
@@ -238,7 +238,7 @@ func TestChecksumValidationSync(t *testing.T) {
 	}
 
 	// Restore cloneFunc for next test
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		dst := filepath.Join(cacheDir, "repo")
 		os.MkdirAll(dst, 0o755)
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
@@ -290,7 +290,7 @@ func TestCommitHashTrackingIntegration(t *testing.T) {
 
 	// Stub cloneFunc
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(cacheDir, "repo")
 		return repoDir, copyDir(templateDir, repoDir)
 	}
@@ -377,7 +377,7 @@ func TestCommitHashTrackingWithAutoUpdate(t *testing.T) {
 
 	// Stub cloneFunc
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(cacheDir, "repo")
 		return repoDir, copyDir(templateDir, repoDir)
 	}
@@ -470,7 +470,7 @@ func TestCommitHashTrackingWithoutAutoUpdate(t *testing.T) {
 
 	// Stub cloneFunc
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(cacheDir, "repo")
 		return repoDir, copyDir(templateDir, repoDir)
 	}
@@ -561,7 +561,7 @@ func TestCommitHashTrackingNetworkFailure(t *testing.T) {
 
 	// Stub cloneFunc
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) {
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(cacheDir, "repo")
 		return repoDir, copyDir(templateDir, repoDir)
 	}
@@ -670,7 +670,7 @@ func TestExecArgumentOrdering(t *testing.T) {
 	os.MkdirAll(repoDir, 0o755)
 	os.WriteFile(filepath.Join(repoDir, "f.tpl"), []byte("hi"), 0o644)
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 	defer func() { cloneFunc = origClone }()
 	// capture exec invocation by replacing binary with a script that records args
 	logFile := filepath.Join(tmp, "args.log")
@@ -722,7 +722,7 @@ func TestEnvironmentVariablesIntegration(t *testing.T) {
 
 	// Mock clone function
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string) (string, error) { return repoDir, nil }
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 	defer func() { cloneFunc = origClone }()
 
 	// Create script that outputs environment variables

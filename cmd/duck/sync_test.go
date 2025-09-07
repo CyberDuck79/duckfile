@@ -67,7 +67,7 @@ targets:
 // force re-render detection relies on file modtime changes, not content differences.
 func stubClone(t *testing.T, content string) {
 	saved := getCloneFunc()
-	setCloneFunc(func(repo, ref, intoDir string) (string, error) {
+	setCloneFunc(func(repo, ref, intoDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(intoDir, "repo")
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return "", err
@@ -84,8 +84,8 @@ func stubClone(t *testing.T, content string) {
 }
 
 // Helper wrappers for cloneFunc seam (exposed via test_seams.go in run package)
-func getCloneFunc() func(string, string, string) (string, error)  { return run.TestGetCloneFunc() }
-func setCloneFunc(f func(string, string, string) (string, error)) { run.TestSetCloneFunc(f) }
+func getCloneFunc() func(string, string, string, bool) (string, error)  { return run.TestGetCloneFunc() }
+func setCloneFunc(f func(string, string, string, bool) (string, error)) { run.TestSetCloneFunc(f) }
 
 // getSymlinkTarget resolves the absolute target file of the symlink at link.
 func getSymlinkTarget(t *testing.T, link string) string {
@@ -212,7 +212,7 @@ targets:
 
 	// Provide clone stub that creates custom.tpl
 	saved := getCloneFunc()
-	setCloneFunc(func(repo, ref, intoDir string) (string, error) {
+	setCloneFunc(func(repo, ref, intoDir string, submodules bool) (string, error) {
 		repoDir := filepath.Join(intoDir, "repo")
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return "", err

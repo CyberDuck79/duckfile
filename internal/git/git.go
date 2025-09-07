@@ -12,7 +12,7 @@ import (
 
 // CloneInto clones/fetches repo@ref into cacheDir/repo and checks out the ref in the workdir.
 // Returns the workdir path with the working tree set to the requested ref (detached HEAD).
-func CloneInto(repo, ref, cacheDir string) (string, error) {
+func CloneInto(repo, ref, cacheDir string, submodules bool) (string, error) {
 	workdir := filepath.Join(cacheDir, "repo") // 1-repo MVP, improve later
 
 	// Already cloned?
@@ -27,11 +27,22 @@ func CloneInto(repo, ref, cacheDir string) (string, error) {
 		if out, err := exec.Command("git", "-C", workdir, "checkout", "--force", "--detach", "FETCH_HEAD").CombinedOutput(); err != nil {
 			return "", fmt.Errorf("git checkout failed: %v: %s", err, string(out))
 		}
+		if submodules {
+			log.Debugf("Updating submodules for %s", workdir)
+			if out, err := exec.Command("git", "-C", workdir, "submodule", "update", "--init", "--recursive").CombinedOutput(); err != nil {
+				return "", fmt.Errorf("git submodule update failed: %v: %s", err, string(out))
+			}
+		}
 		log.Infof("Successfully updated repository to %s", ref)
 	} else {
 		log.Infof("Cloning repository %s to %s", repo, workdir)
 		// Fresh clone, then force checkout the ref (supports branch, tag, or commit)
-		if out, err := exec.Command("git", "clone", "--depth", "1", repo, workdir).CombinedOutput(); err != nil {
+		cloneArgs := []string{"clone", "--depth", "1"}
+		if submodules {
+			cloneArgs = append(cloneArgs, "--recurse-submodules")
+		}
+		cloneArgs = append(cloneArgs, repo, workdir)
+		if out, err := exec.Command("git", cloneArgs...).CombinedOutput(); err != nil {
 			return "", fmt.Errorf("git clone failed: %v: %s", err, string(out))
 		}
 		// Ensure we have the ref and check it out detached
@@ -42,6 +53,12 @@ func CloneInto(repo, ref, cacheDir string) (string, error) {
 		log.Debugf("Checking out ref %s", ref)
 		if out, err := exec.Command("git", "-C", workdir, "checkout", "--force", "--detach", "FETCH_HEAD").CombinedOutput(); err != nil {
 			return "", fmt.Errorf("git checkout failed: %v: %s", err, string(out))
+		}
+		if submodules {
+			log.Debugf("Updating submodules for %s", workdir)
+			if out, err := exec.Command("git", "-C", workdir, "submodule", "update", "--init", "--recursive").CombinedOutput(); err != nil {
+				return "", fmt.Errorf("git submodule update failed: %v: %s", err, string(out))
+			}
 		}
 		log.Infof("Successfully cloned and checked out %s", ref)
 	}
