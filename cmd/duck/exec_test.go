@@ -12,10 +12,102 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestExecCommand tests basic exec command functionality
-func TestExecCommand(t *testing.T) {
-	dir := t.TempDir()
-	writeConfig(t, dir, `version: 1
+const notCalledErrorMessage = "runExec was not called"
+
+// testSetup provides common test setup functionality
+type testSetup struct {
+	dir            string
+	oldWd          string
+	origRunExec    func(*config.DuckConf, string, []string, *config.SecurityConfig, *bool, *bool) error
+	executedTarget string
+	executedArgs   []string
+	trackCommitHash *bool
+	called         bool
+}
+
+// newTestSetup creates a new test setup with common initialization
+func newTestSetup(t *testing.T, configContent string) *testSetup {
+	t.Helper()
+	
+	setup := &testSetup{
+		dir: t.TempDir(),
+	}
+	
+	writeConfig(t, setup.dir, configContent)
+	
+	// Setup working directory
+	setup.oldWd, _ = os.Getwd()
+	os.Chdir(setup.dir)
+	
+	// Setup runExec mock
+	setup.origRunExec = runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, tch *bool, auoc *bool) error {
+		setup.executedTarget = target
+		setup.executedArgs = args
+		setup.trackCommitHash = tch
+		setup.called = true
+		return nil
+	}
+	
+	return setup
+}
+
+// cleanup restores the original state
+func (s *testSetup) cleanup() {
+	runExec = s.origRunExec
+	os.Chdir(s.oldWd)
+	configPath = ""
+}
+
+// createExecCommand creates a cobra command for testing exec functionality
+func createExecCommand(args []string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "exec",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return executeTargetFromArgsWithCmd(cmd, args)
+		},
+	}
+	cmd.SetArgs(args)
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	return cmd
+}
+
+// runExecTest executes a command and handles common error checking
+func runExecTest(t *testing.T, cmd *cobra.Command, expectedError bool, errorMessage string) error {
+	t.Helper()
+	
+	err := cmd.Execute()
+	if expectedError {
+		if err == nil {
+			t.Fatalf("expected error but got none")
+		}
+		if errorMessage != "" && !strings.Contains(err.Error(), errorMessage) {
+			t.Fatalf("error should contain %q, got: %v", errorMessage, err)
+		}
+	} else if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return err
+}
+
+// defaultConfig returns the standard test configuration
+func defaultConfig() string {
+	return `version: 1
+default: build
+targets:
+  build:
+    binary: echo
+    fileFlag: -f
+    template:
+      repo: local
+      path: build.tpl`
+}
+
+// syncConfig returns configuration with sync target for conflict testing
+func syncConfig() string {
+	return `version: 1
 default: build
 targets:
   build:
@@ -29,166 +121,67 @@ targets:
     fileFlag: -f
     template:
       repo: local
-      path: sync.tpl
-`)
+      path: sync.tpl`
+}
 
-	// Test executing target that conflicts with subcommand name
-	var executedTarget string
-	called := false
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
-		executedTarget = target
-		called = true
-		return nil
-	}
-	defer func() { runExec = orig }()
+// TestExecCommand tests basic exec command functionality
+func TestExecCommand(t *testing.T) {
+	setup := newTestSetup(t, syncConfig())
+	defer setup.cleanup()
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
+	cmd := createExecCommand([]string{"sync"})
+	runExecTest(t, cmd, false, "")
 
-	// Test: duck exec sync (should execute target, not subcommand)
-	cmd := &cobra.Command{
-		Use:                "exec",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeTargetFromArgsWithCmd(cmd, args)
-		},
-	}
-	cmd.SetArgs([]string{"sync"})
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("exec sync failed: %v", err)
+	if !setup.called {
+		t.Fatal(notCalledErrorMessage)
 	}
 
-	if !called {
-		t.Fatal("runExec was not called")
-	}
-
-	if executedTarget != "sync" {
-		t.Fatalf("expected target 'sync', got %q", executedTarget)
+	if setup.executedTarget != "sync" {
+		t.Fatalf("expected target 'sync', got %q", setup.executedTarget)
 	}
 }
 
 // TestExecCommandWithPassthrough tests exec command with passthrough args
 func TestExecCommandWithPassthrough(t *testing.T) {
-	dir := t.TempDir()
-	writeConfig(t, dir, `version: 1
-default: build
-targets:
-  build:
-    binary: echo
-    fileFlag: -f
-    template:
-      repo: local
-      path: build.tpl
-`)
+	setup := newTestSetup(t, defaultConfig())
+	defer setup.cleanup()
 
-	var executedTarget string
-	var executedArgs []string
-	called := false
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
-		executedTarget = target
-		executedArgs = args
-		called = true
-		return nil
-	}
-	defer func() { runExec = orig }()
+	cmd := createExecCommand([]string{"build", "--", "--verbose"})
+	runExecTest(t, cmd, false, "")
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
-
-	// Test: duck exec build -- --verbose
-	cmd := &cobra.Command{
-		Use:                "exec",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeTargetFromArgsWithCmd(cmd, args)
-		},
-	}
-	cmd.SetArgs([]string{"build", "--", "--verbose"})
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("exec build with passthrough failed: %v", err)
+	if !setup.called {
+		t.Fatal(notCalledErrorMessage)
 	}
 
-	if !called {
-		t.Fatal("runExec was not called")
+	if setup.executedTarget != "build" {
+		t.Fatalf("expected target 'build', got %q", setup.executedTarget)
 	}
 
-	if executedTarget != "build" {
-		t.Fatalf("expected target 'build', got %q", executedTarget)
-	}
-
-	if len(executedArgs) != 1 || executedArgs[0] != "--verbose" {
-		t.Fatalf("expected args ['--verbose'], got %v", executedArgs)
+	if len(setup.executedArgs) != 1 || setup.executedArgs[0] != "--verbose" {
+		t.Fatalf("expected args ['--verbose'], got %v", setup.executedArgs)
 	}
 }
 
 // TestExecCommandWithFlags tests exec command with flags
 func TestExecCommandWithFlags(t *testing.T) {
-	dir := t.TempDir()
-	writeConfig(t, dir, `version: 1
-default: build
-targets:
-  build:
-    binary: echo
-    fileFlag: -f
-    template:
-      repo: local
-      path: build.tpl
-`)
+	setup := newTestSetup(t, defaultConfig())
+	defer setup.cleanup()
 
-	var executedTarget string
-	var trackCommitHashFlag *bool
-	called := false
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, tch *bool, autoUpdateOnChangeFlag *bool) error {
-		executedTarget = target
-		trackCommitHashFlag = tch
-		called = true
-		return nil
-	}
-	defer func() { runExec = orig }()
+	cmd := createExecCommand([]string{"--track-commit-hash", "build"})
+	runExecTest(t, cmd, false, "")
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
-
-	// Test: duck exec --track-commit-hash build
-	cmd := &cobra.Command{
-		Use:                "exec",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeTargetFromArgsWithCmd(cmd, args)
-		},
-	}
-	cmd.SetArgs([]string{"--track-commit-hash", "build"})
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("exec with flags failed: %v", err)
+	if !setup.called {
+		t.Fatal(notCalledErrorMessage)
 	}
 
-	if !called {
-		t.Fatal("runExec was not called")
+	if setup.executedTarget != "build" {
+		t.Fatalf("expected target 'build', got %q", setup.executedTarget)
 	}
 
-	if executedTarget != "build" {
-		t.Fatalf("expected target 'build', got %q", executedTarget)
-	}
-
-	if trackCommitHashFlag == nil || !*trackCommitHashFlag {
+	if setup.trackCommitHash == nil || !*setup.trackCommitHash {
 		t.Fatalf("expected trackCommitHashFlag to be true")
 	}
-} // TestExecCommandHelp tests that exec command help works
+}// TestExecCommandHelp tests that exec command help works
 func TestExecCommandHelp(t *testing.T) {
 	// Create a simple command just for help test
 	cmd := &cobra.Command{
@@ -239,96 +232,49 @@ targets:
     fileFlag: -f
     template:
       repo: local
-      path: custom.tpl
-`
+      path: custom.tpl`
+
 	customConfigPath := filepath.Join(dir, "custom.yaml")
 	if err := os.WriteFile(customConfigPath, []byte(customConfig), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	var executedTarget string
-	called := false
-	orig := runExec
-	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) error {
-		executedTarget = target
-		called = true
+	setup := newTestSetup(t, "")
+	// Override the directory since we need a custom config
+	setup.cleanup()
+	setup.dir = dir
+	setup.oldWd, _ = os.Getwd()
+	os.Chdir(dir)
+	defer setup.cleanup()
+
+	// Setup mock after changing directory
+	setup.origRunExec = runExec
+	runExec = func(cfg *config.DuckConf, target string, args []string, securityCfg *config.SecurityConfig, tch *bool, auoc *bool) error {
+		setup.executedTarget = target
+		setup.called = true
 		return nil
 	}
-	defer func() { runExec = orig }()
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
+	cmd := createExecCommand([]string{"--config", "custom.yaml", "custom"})
+	runExecTest(t, cmd, false, "")
 
-	// Reset global state
-	configPath = ""
-
-	// Test: duck exec --config custom.yaml custom
-	cmd := &cobra.Command{
-		Use:                "exec",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeTargetFromArgsWithCmd(cmd, args)
-		},
-	}
-	cmd.SetArgs([]string{"--config", "custom.yaml", "custom"})
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("exec with config flag failed: %v", err)
+	if !setup.called {
+		t.Fatal(notCalledErrorMessage)
 	}
 
-	if !called {
-		t.Fatal("runExec was not called")
-	}
-
-	if executedTarget != "custom" {
-		t.Fatalf("expected target 'custom', got %q", executedTarget)
+	if setup.executedTarget != "custom" {
+		t.Fatalf("expected target 'custom', got %q", setup.executedTarget)
 	}
 }
 
 // TestExecCommandUnknownTarget tests exec command with unknown target
 func TestExecCommandUnknownTarget(t *testing.T) {
-	dir := t.TempDir()
-	writeConfig(t, dir, `version: 1
-default: build
-targets:
-  build:
-    binary: echo
-    fileFlag: -f
-    template:
-      repo: local
-      path: build.tpl
-`)
+	setup := newTestSetup(t, defaultConfig())
+	defer setup.cleanup()
 
-	// Don't mock runExec - let it run and fail with unknown target
-	oldWd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldWd)
+	// Don't mock runExec for this test - restore original
+	runExec = setup.origRunExec
 
-	// Reset global state
-	configPath = ""
-
-	// Test: duck exec unknown
-	cmd := &cobra.Command{
-		Use:                "exec",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeTargetFromArgsWithCmd(cmd, args)
-		},
-	}
-	cmd.SetArgs([]string{"unknown"})
-	var errBuf bytes.Buffer
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&errBuf)
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatalf("expected error for unknown target")
-	}
-
-	if !strings.Contains(err.Error(), "unknown target") {
-		t.Fatalf("error should mention unknown target, got: %v", err)
-	}
+	cmd := createExecCommand([]string{"unknown"})
+	runExecTest(t, cmd, true, "unknown target")
 }
