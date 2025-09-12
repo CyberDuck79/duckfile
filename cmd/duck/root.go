@@ -24,35 +24,23 @@ var Version = "dev"
 var configPath string
 
 var rootCmd = &cobra.Command{
-	Use:   "duck [target] -- [target_args...]",
+	Use:   "duck [-- target_args...]",
 	Short: "Universal remote templating for DevOps tools",
 	Long: `Duck fetches, renders, and executes remote Git templates with deterministic caching.
 
 USAGE
-  duck [target] [flags]                 Execute target (or default if none specified)
-  duck [target] -- [args...] [flags]   Execute target and pass args to underlying tool
-  duck [command] [flags]                Run a specific command
+  duck [flags]                      Execute default target  
+  duck -- [args...] [flags]        Execute default target with args
+  duck exec [target] [flags]        Execute specific target
+  duck [command] [flags]            Run a specific command
 
-COMMANDS
-  add         Add a new target to existing duck.yaml
-  clean       Purge cached objects and per-target directories  
-  init        Interactive wizard to create a duck.yaml
-  list        List targets defined in duck.yaml
-  sync        Sync templates into cache without executing
-  version     Print duck version
-  help        Help about any command
-
-FLAGS
-  -h, --help                     Show help for duck
-  -c, --config string            Path to duck config file (default: auto-discover)
-  --log-level string             Log level: error, warn, info, debug
-  --track-commit-hash            Enable commit hash validation
-  --no-track-commit-hash         Disable commit hash validation
-  --auto-update-on-change        Auto-update when commit hash changes
-  --no-auto-update-on-change     Disable auto-update on commit changes
-  --allowed-hosts strings        Comma-separated allowed Git hosts
-  --denied-hosts strings         Comma-separated denied Git hosts
-  --strict-hosts                 Fail if no host restrictions configured
+EXAMPLES
+  duck                              Execute default target
+  duck -- --verbose                Execute default target with args
+  duck exec build                   Execute 'build' target explicitly
+  duck exec sync                    Execute target named 'sync' (not subcommand)
+  duck sync                         Run sync subcommand (render templates)
+  duck list                         List available targets
 
 ENVIRONMENT VARIABLES
   DUCK_CONFIG                    Path to config file (overrides auto-discovery)
@@ -63,130 +51,23 @@ ENVIRONMENT VARIABLES
   DUCK_DENIED_HOSTS              Comma-separated denied hosts
   DUCK_STRICT_MODE               Enable strict host validation (true/false)
 
-EXAMPLES
-  duck                           Execute default target
-  duck build                     Execute 'build' target  
-  duck --config prod.yaml build  Use custom config file
-  duck test -- --verbose         Execute 'test' with args
-  duck sync                      Sync all templates
-  duck --log-level=debug build   Execute with debug logging
-
-Use "duck [command] --help" for more information about a command.`,
+FLAGS
+  -c, --config string            Path to duck config file (default: auto-discover)
+  --log-level string             Log level: error, warn, info, debug
+  --track-commit-hash            Enable commit hash validation
+  --no-track-commit-hash         Disable commit hash validation
+  --auto-update-on-change        Auto-update when commit hash changes
+  --no-auto-update-on-change     Disable auto-update on commit changes
+  --allowed-hosts strings        Comma-separated allowed Git hosts
+  --denied-hosts strings         Comma-separated denied Git hosts
+  --strict-hosts                 Fail if no host restrictions configured`,
 	SilenceUsage:       true,
 	SilenceErrors:      true,
 	DisableFlagParsing: true, // Disable to handle custom parsing with -- separator
 	Args:               cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Manual parsing for target and passthrough args due to -- separator
-		var (
-			target             string
-			binArgs            []string
-			logLevel           string
-			trackCommitHash    *bool
-			autoUpdateOnChange *bool
-		)
-
-		// Find "--" separator
-		sepIdx := -1
-		for i, a := range args {
-			if a == "--" {
-				sepIdx = i
-				break
-			}
-		}
-
-		duckArgs := args
-		if sepIdx != -1 {
-			duckArgs = args[:sepIdx]
-			binArgs = args[sepIdx+1:]
-		}
-
-		// Parse our custom flags from duckArgs
-		allowedHosts := []string{}
-		deniedHosts := []string{}
-		strictMode := false
-
-		for i := 0; i < len(duckArgs); i++ {
-			arg := duckArgs[i]
-			switch {
-			case strings.HasPrefix(arg, "--config="):
-				configPath = arg[len("--config="):]
-			case arg == "--config" && i+1 < len(duckArgs):
-				configPath = duckArgs[i+1]
-				i++ // skip next arg
-			case arg == "-c" && i+1 < len(duckArgs):
-				configPath = duckArgs[i+1]
-				i++ // skip next arg
-			case strings.HasPrefix(arg, "--log-level="):
-				logLevel = arg[len("--log-level="):]
-			case arg == "--log-level" && i+1 < len(duckArgs):
-				logLevel = duckArgs[i+1]
-				i++ // skip next arg
-			case arg == "--track-commit-hash":
-				trackTrue := true
-				trackCommitHash = &trackTrue
-			case arg == "--no-track-commit-hash":
-				trackFalse := false
-				trackCommitHash = &trackFalse
-			case arg == "--auto-update-on-change":
-				updateTrue := true
-				autoUpdateOnChange = &updateTrue
-			case arg == "--no-auto-update-on-change":
-				updateFalse := false
-				autoUpdateOnChange = &updateFalse
-			case strings.HasPrefix(arg, "--allowed-hosts="):
-				hostStr := arg[len("--allowed-hosts="):]
-				allowedHosts = strings.Split(hostStr, ",")
-			case arg == "--allowed-hosts" && i+1 < len(duckArgs):
-				hostStr := duckArgs[i+1]
-				allowedHosts = strings.Split(hostStr, ",")
-				i++ // skip next arg
-			case strings.HasPrefix(arg, "--denied-hosts="):
-				hostStr := arg[len("--denied-hosts="):]
-				deniedHosts = strings.Split(hostStr, ",")
-			case arg == "--denied-hosts" && i+1 < len(duckArgs):
-				hostStr := duckArgs[i+1]
-				deniedHosts = strings.Split(hostStr, ",")
-				i++ // skip next arg
-			case arg == "--strict-hosts":
-				strictMode = true
-			case arg == "-h" || arg == "--help":
-				return cmd.Help()
-			case !strings.HasPrefix(arg, "-"):
-				// This is the target name
-				if target == "" {
-					target = arg
-				}
-			}
-		}
-
-		// 1. load config
-		cfg, err := loadConfig()
-		if err != nil {
-			return err
-		}
-
-		// 2. Resolve and set log level
-		logLevelStr := config.ResolveLogLevel(logLevel, cfg)
-		effectiveLogLevel, err := log.ParseLevel(logLevelStr)
-		if err != nil {
-			return fmt.Errorf("invalid log level: %w", err)
-		}
-		log.SetLevel(effectiveLogLevel)
-
-		// 3. If no target or explicit legacy "default", translate to configured default key
-		if target == "" || target == "default" {
-			target = cfg.Default
-		}
-
-		// 4. Build security configuration with enhanced precedence system
-		securityCfg, err := config.BuildSecurityConfigWithPrecedence(allowedHosts, deniedHosts, strictMode)
-		if err != nil {
-			return fmt.Errorf("failed to build security configuration: %w", err)
-		}
-
-		// 5. execute with security validation
-		return runExec(cfg, target, binArgs, securityCfg, trackCommitHash, autoUpdateOnChange)
+		// Execute targets (including default when no args provided)
+		return executeTargetFromArgsWithCmd(cmd, args)
 	},
 }
 
@@ -199,7 +80,153 @@ func init() {
 
 	// Set custom help template only for root command
 	rootCmd.SetHelpTemplate(`{{.Long}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.
 `)
+}
+
+// executeTargetFromArgsWithCmd handles the common target execution logic with optional cmd for help
+func executeTargetFromArgsWithCmd(cmd *cobra.Command, args []string) error {
+	// Manual parsing for target and passthrough args due to -- separator
+	var (
+		target             string
+		binArgs            []string
+		logLevel           string
+		trackCommitHash    *bool
+		autoUpdateOnChange *bool
+	)
+
+	// Find "--" separator
+	sepIdx := -1
+	for i, a := range args {
+		if a == "--" {
+			sepIdx = i
+			break
+		}
+	}
+
+	duckArgs := args
+	if sepIdx != -1 {
+		duckArgs = args[:sepIdx]
+		binArgs = args[sepIdx+1:]
+	}
+
+	// Parse our custom flags from duckArgs
+	allowedHosts := []string{}
+	deniedHosts := []string{}
+	strictMode := false
+
+	for i := 0; i < len(duckArgs); i++ {
+		arg := duckArgs[i]
+		switch {
+		case strings.HasPrefix(arg, "--config="):
+			configPath = arg[len("--config="):]
+		case arg == "--config" && i+1 < len(duckArgs):
+			configPath = duckArgs[i+1]
+			i++ // skip next arg
+		case arg == "-c" && i+1 < len(duckArgs):
+			configPath = duckArgs[i+1]
+			i++ // skip next arg
+		case strings.HasPrefix(arg, "--log-level="):
+			logLevel = arg[len("--log-level="):]
+		case arg == "--log-level" && i+1 < len(duckArgs):
+			logLevel = duckArgs[i+1]
+			i++ // skip next arg
+		case arg == "--track-commit-hash":
+			trackTrue := true
+			trackCommitHash = &trackTrue
+		case arg == "--no-track-commit-hash":
+			trackFalse := false
+			trackCommitHash = &trackFalse
+		case arg == "--auto-update-on-change":
+			updateTrue := true
+			autoUpdateOnChange = &updateTrue
+		case arg == "--no-auto-update-on-change":
+			updateFalse := false
+			autoUpdateOnChange = &updateFalse
+		case strings.HasPrefix(arg, "--allowed-hosts="):
+			hostStr := arg[len("--allowed-hosts="):]
+			allowedHosts = strings.Split(hostStr, ",")
+		case arg == "--allowed-hosts" && i+1 < len(duckArgs):
+			hostStr := duckArgs[i+1]
+			allowedHosts = strings.Split(hostStr, ",")
+			i++ // skip next arg
+		case strings.HasPrefix(arg, "--denied-hosts="):
+			hostStr := arg[len("--denied-hosts="):]
+			deniedHosts = strings.Split(hostStr, ",")
+		case arg == "--denied-hosts" && i+1 < len(duckArgs):
+			hostStr := duckArgs[i+1]
+			deniedHosts = strings.Split(hostStr, ",")
+			i++ // skip next arg
+		case arg == "--strict-hosts":
+			strictMode = true
+		case arg == "-h" || arg == "--help":
+			if cmd != nil {
+				return cmd.Help()
+			}
+			// For exec command without cmd reference, just ignore help flag
+		case !strings.HasPrefix(arg, "-"):
+			// This is the target name
+			if target == "" {
+				target = arg
+			}
+		}
+	}
+
+	// 1. load config
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+
+	// 2. Resolve and set log level
+	logLevelStr := config.ResolveLogLevel(logLevel, cfg)
+	effectiveLogLevel, err := log.ParseLevel(logLevelStr)
+	if err != nil {
+		return fmt.Errorf("invalid log level: %w", err)
+	}
+	log.SetLevel(effectiveLogLevel)
+
+	// 3. If no target or explicit legacy "default", translate to configured default key
+	if target == "" || target == "default" {
+		target = cfg.Default
+	}
+
+	// 4. Build security configuration with enhanced precedence system
+	securityCfg, err := config.BuildSecurityConfigWithPrecedence(allowedHosts, deniedHosts, strictMode)
+	if err != nil {
+		return fmt.Errorf("failed to build security configuration: %w", err)
+	}
+
+	// 5. execute with security validation
+	return runExec(cfg, target, binArgs, securityCfg, trackCommitHash, autoUpdateOnChange)
+}
+
+// checkForTargetConflictAndWarn checks if there's a target with the same name as the subcommand
+// and warns the user about potential confusion
+func checkForTargetConflictAndWarn(subcommandName string) {
+	cfg, err := loadConfig()
+	if err != nil {
+		// If we can't load config, don't show warnings
+		return
+	}
+
+	if _, exists := cfg.Targets[subcommandName]; exists {
+		fmt.Fprintf(os.Stderr, "⚠️  Note: You have a target named '%s' but ran the '%s' subcommand.\n", subcommandName, subcommandName)
+		fmt.Fprintf(os.Stderr, "   To execute the target instead, use: duck exec %s\n\n", subcommandName)
+	}
 }
 
 func main() {

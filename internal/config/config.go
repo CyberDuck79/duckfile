@@ -342,6 +342,18 @@ func validateTarget(t Target, name string) error {
 	return validateCommitHashTracking(t.Template, name)
 }
 
+// IsReservedTargetName checks if a target name conflicts with subcommand names
+// This is used for warnings and conflict detection, but doesn't prevent target creation
+func IsReservedTargetName(name string) bool {
+	reservedTargetNames := map[string]bool{
+		"add": true, "clean": true, "exec": true, "init": true,
+		"list": true, "security": true, "sync": true, "version": true, "help": true,
+		"completion": true, // Also block the auto-generated completion command
+	}
+
+	return reservedTargetNames[name]
+}
+
 // validateCommitHashTracking checks if commit hash tracking is properly configured.
 // If ref is already a commit hash, commit hash tracking doesn't make sense since commit hashes don't change.
 func validateCommitHashTracking(template Template, targetName string) error {

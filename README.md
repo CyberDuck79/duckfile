@@ -122,6 +122,11 @@ duck
 # run a named target and pass additional args after --
 duck test --
 
+# explicitly run a target (useful when target names conflict with subcommands)
+duck exec build
+duck exec sync    # runs 'sync' target, not sync subcommand
+duck exec test -- --verbose
+
 # list targets (names, binaries, descriptions)
 duck list
 # include remote info / variable kinds / execution line
@@ -410,6 +415,35 @@ duck build
 settings:
   logLevel: info
 ```
+
+## Target Name Conflicts and Explicit Execution
+
+When target names conflict with Duck's built-in subcommands (like `sync`, `list`, `clean`), Duck shows warnings and provides the `exec` command for explicit target execution:
+
+**Example conflict:**
+```yaml
+targets:
+  sync:  # Conflicts with 'duck sync' subcommand
+    binary: rsync
+    # ... template config
+```
+
+**Behavior:**
+```sh
+# This runs the subcommand, not the target
+duck sync
+
+# Warning is shown for subcommands when conflicts exist
+duck list
+# ⚠️  Target 'sync' conflicts with subcommand. Use 'duck exec sync' to run the target.
+
+# Use exec to explicitly run the target
+duck exec sync          # Runs 'sync' target
+duck exec sync -- -v    # Runs 'sync' target with args
+```
+
+**Available commands that can conflict:**
+- `sync`, `list`, `clean`, `add`, `init`, `security`, `version`
 
 ## Environment variable management with .env files
 

@@ -47,6 +47,9 @@ FLAGS
 Use environment variables DUCK_* to set defaults for configuration options.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if user might have intended to execute a target named 'sync'
+			checkForTargetConflictAndWarn("sync")
+
 			cfg, err := loadConfig()
 			if err != nil {
 				return err

@@ -35,6 +35,9 @@ EXAMPLES
   duck list -r           Include remote template details
   duck list -v -e        Show variables and execution info`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if user might have intended to execute a target named 'list'
+			checkForTargetConflictAndWarn("list")
+
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
