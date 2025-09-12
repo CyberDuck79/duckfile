@@ -35,6 +35,11 @@ The wizard creates a complete duck.yaml file ready for use.`,
 			if _, err := os.Stat("duck.yaml"); err == nil {
 				return fmt.Errorf("duck.yaml already exists")
 			}
+
+			// Check if user might have intended to execute a target named 'init'
+			// Note: This will only show if there's an existing config in parent dirs
+			checkForTargetConflictAndWarn("init")
+
 			return runInitWizardFunc()
 		},
 	}

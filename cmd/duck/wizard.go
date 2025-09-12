@@ -51,6 +51,19 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 		return config.Target{}, "", err
 	}
 
+	// Check for potential conflicts with subcommand names and warn
+	if config.IsReservedTargetName(name) {
+		fmt.Printf("⚠️  Warning: Target name '%s' conflicts with the '%s' subcommand.\n", name, name)
+		fmt.Printf("   Use 'duck exec %s' to execute this target instead of 'duck %s'.\n", name, name)
+		cont, err := ask("Continue anyway? (y/N): ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(cont)), "y") {
+			return config.Target{}, "", fmt.Errorf("target creation cancelled")
+		}
+	}
+
 	// Target description
 	description, err := ask("Target description (shown in 'duck list') [optional]: ")
 	if err != nil {

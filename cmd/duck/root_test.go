@@ -306,12 +306,11 @@ func TestConfigFlagShortForm(t *testing.T) {
 default: short-build
 targets:
   short-build:
-    name: short-build
     binary: echo
     fileFlag: -f
     template:
       repo: local
-    path: short.tpl
+      path: short.tpl
 `
 	if err := os.WriteFile(filepath.Join(dir, "short.yaml"), []byte(customConfig), 0o644); err != nil {
 		t.Fatal(err)

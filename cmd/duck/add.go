@@ -25,6 +25,9 @@ This command will prompt you for:
 
 The new target will be appended to your existing duck.yaml configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if user might have intended to execute a target named 'add'
+			checkForTargetConflictAndWarn("add")
+
 			cfg, err := loadConfig()
 			if err != nil {
 				return err

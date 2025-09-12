@@ -28,6 +28,9 @@ This removes .duck/objects and per-target directories to force fresh downloads
 and rendering on the next sync or execution.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if user might have intended to execute a target named 'clean'
+			checkForTargetConflictAndWarn("clean")
+
 			cfg, err := loadConfig()
 			if err != nil {
 				return err

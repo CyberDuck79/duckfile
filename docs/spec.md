@@ -20,6 +20,20 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 | `targets` | Mapping <string, Target> | ✔ | Declared targets executed via `duck <target> <args>`. Must contain the default key. |
 | `settings` | Settings object | ✖ | Global switches (cache dir, log level, locked mode). **Security settings like host allow/deny lists are configured via environment variables or CLI flags, not in this file**. |
 
+### Target Naming and CLI Conflicts
+
+Target names can use any valid YAML key string. If target names conflict with Duck's built-in subcommands (`sync`, `list`, `clean`, `add`, `init`, `security`, `version`), Duck will show warnings and provide the `exec` command for explicit target execution:
+
+```yaml
+targets:
+  sync:  # Conflicts with 'duck sync' subcommand
+    # Duck will warn about this conflict
+  build: # No conflict
+    # Normal target
+```
+
+Use `duck exec <target>` to explicitly execute targets that conflict with subcommands.
+
 ## 3. Target object
 
 | Key | Type | Required | Description |
