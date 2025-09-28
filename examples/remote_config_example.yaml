@@ -1,0 +1,73 @@
+# Example configuration demonstrating remote configuration separation
+version: 1
+default: build
+
+# Remote configurations are defined once and can be shared across multiple targets
+remotes:
+  # Main development remote with auto-update enabled
+  company-main:
+    repo: https://github.com/company/templates.git
+    ref: main
+    trackCommitHash: true
+    autoUpdateOnChange: true
+    submodules: true
+
+  # Stable production remote with manual updates only  
+  prod-stable:
+    repo: https://github.com/company/prod-templates.git
+    ref: v2.1.0
+    trackCommitHash: true
+    autoUpdateOnChange: false
+
+  # Legacy remote without commit tracking
+  legacy:
+    repo: https://github.com/company/legacy.git
+    ref: support
+    trackCommitHash: false
+
+targets:
+  # Multiple targets can share the same remote (company-main)
+  build:
+    binary: make
+    fileFlag: -f
+    template:
+      remote: company-main  # References the remote defined above
+      path: Makefile.tpl
+      checksum: "abc123..."  # Template-specific checksum validation
+    variables:
+      PROJECT: my-service
+      DATE: !cmd date +%Y-%m-%d
+
+  test:
+    binary: go
+    fileFlag: -f
+    template:
+      remote: company-main  # Shares cache with build target
+      path: test.tpl
+    variables:
+      ENV: testing
+
+  # Production deployment using stable templates
+  deploy:
+    binary: kubectl
+    fileFlag: -f
+    template:
+      remote: prod-stable
+      path: deployment.yaml.tpl
+    variables:
+      NAMESPACE: production
+
+  # Legacy support with inline template (backward compatibility)
+  legacy-build:
+    binary: task
+    fileFlag: --taskfile
+    template:
+      repo: https://github.com/legacy/old-templates.git
+      ref: v1.0.0
+      path: Taskfile.yml.tpl
+      trackCommitHash: false
+    variables:
+      MODE: legacy
+
+settings:
+  logLevel: info

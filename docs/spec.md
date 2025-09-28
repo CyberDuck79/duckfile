@@ -58,8 +58,6 @@ Use `duck exec <target>` to explicitly execute targets that conflict with subcom
 | `delims` | Object `{left,right}` | ✖ | Override Go template delimiters (`{{` / `}}` by default). |
 | `allowMissing` | Boolean | ✖ | If `true`, missing keys render as zero values (empty strings). Default `false` (strict). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
-| `submodules` | Boolean | ✖ | If true, fetch submodules using `git clone --recurse-submodules` and `git submodule update --init --recursive`. Default `false`. |
-| `submodules` | Boolean | ✖ | If true, fetch submodules using `git clone --recurse-submodules` and `git submodule update --init --recursive`. Default `false`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. If provided, Duckfile will validate the fetched template file against this checksum. |
 | `trackCommitHash` | Boolean | ✖ | Enable commit hash validation and tracking. When `true`, Duckfile stores the actual commit hash after fetching and validates it hasn't changed on subsequent runs. Default `false`. **Note: Cannot be used with commit hash refs (40-character hex strings).** |
 | `autoUpdateOnChange` | Boolean | ✖ | Automatically update cache when remote commit hash changes. Only valid when `trackCommitHash` is `true`. Default `false`. When enabled, cache is automatically invalidated and re-fetched if the remote commit hash differs from the stored value. |

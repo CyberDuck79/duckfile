@@ -70,7 +70,7 @@
           }
         },
         {
-          "if": { "properties": { "copyRendered": { "const": true } } },
+          "if": { "required": ["renderedPath"], "properties": { "copyRendered": { "const": true } } },
           "then": { "required": ["renderedPath"] }
         }
       ]
