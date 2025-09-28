@@ -164,18 +164,24 @@ func validateTemplateConfiguration(targetName string, target *Target, result *Po
 func ApplyPolicyOverrides(target *Target, securityCfg *SecurityConfig) *Target {
 	// Create a copy to avoid modifying the original
 	modifiedTarget := *target
-	modifiedTemplate := target.Template
+
+	// Make a deep copy of the template to avoid modifying the original
+	var modifiedTemplate *Template
+	if target.Template != nil {
+		templateCopy := *target.Template
+		modifiedTemplate = &templateCopy
+	}
 
 	if securityCfg != nil && securityCfg.Enforcement != nil {
 		enforcement := securityCfg.Enforcement
 
 		// Force disable auto-update if policy requires it
-		if enforcement.DisableAutoUpdate {
+		if enforcement.DisableAutoUpdate && modifiedTemplate != nil {
 			modifiedTemplate.AutoUpdateOnChange = false
 		}
 
 		// Force enable commit tracking if policy requires it
-		if enforcement.ForceCommitTracking {
+		if enforcement.ForceCommitTracking && modifiedTemplate != nil {
 			modifiedTemplate.TrackCommitHash = true
 		}
 	}

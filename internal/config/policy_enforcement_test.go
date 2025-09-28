@@ -20,7 +20,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "nil security config should allow everything",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "https://github.com/test/repo",
 					Ref:  "main",
 					Path: "template.yml",
@@ -35,7 +35,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "no enforcement policy should allow everything",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "https://github.com/test/repo",
 					Ref:  "main",
 					Path: "template.yml",
@@ -52,7 +52,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "force checksum validation without checksum should fail",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "https://github.com/test/repo",
 					Ref:  "v1.0.0",
 					Path: "template.yml",
@@ -74,7 +74,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "force checksum validation with checksum should pass",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo:     "https://github.com/test/repo",
 					Ref:      "v1.0.0",
 					Path:     "template.yml",
@@ -95,7 +95,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "force commit tracking without tracking should fail",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo:            "https://github.com/test/repo",
 					Ref:             "v1.0.0",
 					Path:            "template.yml",
@@ -118,7 +118,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "force commit tracking with tracking should pass",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo:            "https://github.com/test/repo",
 					Ref:             "v1.0.0",
 					Path:            "template.yml",
@@ -140,7 +140,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "disable auto update with auto update enabled should warn",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo:               "https://github.com/test/repo",
 					Ref:                "v1.0.0",
 					Path:               "template.yml",
@@ -161,7 +161,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "repository access denied should fail",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "malicious.com/bad/repo",
 					Ref:  "v1.0.0",
 					Path: "template.yml",
@@ -182,7 +182,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "multiple violations should be reported",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "malicious.com/bad/repo", // Not allowed
 					Ref:  "v1.0.0",
 					Path: "template.yml",
@@ -206,7 +206,7 @@ func TestEnforceSecurityPolicies(t *testing.T) {
 			name:       "unstable git reference should warn",
 			targetName: "test",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo:     "https://github.com/test/repo",
 					Ref:      "main", // Unstable reference
 					Path:     "template.yml",
@@ -269,7 +269,7 @@ func TestApplyPolicyOverrides(t *testing.T) {
 		{
 			name: "no security config should not modify target",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					AutoUpdateOnChange: true,
 					TrackCommitHash:    false,
 				},
@@ -281,7 +281,7 @@ func TestApplyPolicyOverrides(t *testing.T) {
 		{
 			name: "no enforcement should not modify target",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					AutoUpdateOnChange: true,
 					TrackCommitHash:    false,
 				},
@@ -295,7 +295,7 @@ func TestApplyPolicyOverrides(t *testing.T) {
 		{
 			name: "disable auto update should override target setting",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					AutoUpdateOnChange: true, // Original setting
 					TrackCommitHash:    false,
 				},
@@ -311,7 +311,7 @@ func TestApplyPolicyOverrides(t *testing.T) {
 		{
 			name: "force commit tracking should override target setting",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					AutoUpdateOnChange: true,
 					TrackCommitHash:    false, // Original setting
 				},
@@ -327,7 +327,7 @@ func TestApplyPolicyOverrides(t *testing.T) {
 		{
 			name: "multiple overrides should be applied",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					AutoUpdateOnChange: true,  // Will be disabled
 					TrackCommitHash:    false, // Will be enabled
 				},
@@ -588,7 +588,7 @@ func TestTemplateValidation(t *testing.T) {
 		{
 			name: "valid template should pass",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "github.com/test/repo",
 					Ref:  "v1.0.0",
 					Path: "template.yml",
@@ -600,7 +600,7 @@ func TestTemplateValidation(t *testing.T) {
 		{
 			name: "missing repo should fail",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Ref:  "v1.0.0",
 					Path: "template.yml",
 				},
@@ -611,7 +611,7 @@ func TestTemplateValidation(t *testing.T) {
 		{
 			name: "missing ref should fail",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "github.com/test/repo",
 					Path: "template.yml",
 				},
@@ -622,7 +622,7 @@ func TestTemplateValidation(t *testing.T) {
 		{
 			name: "missing path should fail",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "github.com/test/repo",
 					Ref:  "v1.0.0",
 				},
@@ -633,7 +633,7 @@ func TestTemplateValidation(t *testing.T) {
 		{
 			name: "unstable ref should warn",
 			target: &Target{
-				Template: Template{
+				Template: &Template{
 					Repo: "github.com/test/repo",
 					Ref:  "main",
 					Path: "template.yml",

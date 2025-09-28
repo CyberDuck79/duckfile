@@ -130,7 +130,8 @@ type Target struct {
 	Description  string              `yaml:"description,omitempty"`
 	Binary       string              `yaml:"binary,omitempty"`
 	FileFlag     string              `yaml:"fileFlag,omitempty"`
-	Template     Template            `yaml:"template"`
+	Template     *Template           `yaml:"template,omitempty"`
+	TemplateRef  *string             `yaml:"templateRef,omitempty"`
 	Variables    map[string]VarValue `yaml:"variables,omitempty"`
 	RenderedPath string              `yaml:"renderedPath,omitempty"`
 	CopyRendered bool                `yaml:"copyRendered,omitempty"` // If true, copy instead of symlink. RenderedPath required.
@@ -189,9 +190,10 @@ func (s *Settings) GetAutoUpdateOnChange() bool {
 type DuckConf struct {
 	Version int `yaml:"version"`
 	// Default is the key of the target (in Targets) executed when the user omits a target.
-	Default  string            `yaml:"default"`
-	Targets  map[string]Target `yaml:"targets"`
-	Settings *Settings         `yaml:"settings,omitempty"`
+	Default  string              `yaml:"default"`
+	Remotes  map[string]Template `yaml:"remotes,omitempty"`
+	Targets  map[string]Target   `yaml:"targets"`
+	Settings *Settings           `yaml:"settings,omitempty"`
 }
 
 // Save writes the configuration to disk as YAML.
@@ -278,9 +280,16 @@ func (c *DuckConf) Validate() error {
 		return err
 	}
 
+	// Validate each remote template
+	for name, template := range c.Remotes {
+		if err := validateRemoteTemplate(template, name); err != nil {
+			return err
+		}
+	}
+
 	// Validate each target
 	for name, t := range c.Targets {
-		if err := validateTarget(t, name); err != nil {
+		if err := validateTarget(t, name, c.Remotes); err != nil {
 			return err
 		}
 	}
@@ -318,7 +327,19 @@ func validateSettings(s *Settings) error {
 	return nil
 }
 
-func validateTarget(t Target, name string) error {
+func validateRemoteTemplate(template Template, name string) error {
+	if strings.TrimSpace(template.Repo) == "" {
+		return fmt.Errorf("remote %q: repository is required", name)
+	}
+	if strings.TrimSpace(template.Path) == "" {
+		return fmt.Errorf("remote %q: path is required", name)
+	}
+
+	// Validate commit hash tracking configuration for remote template
+	return validateCommitHashTracking(template, fmt.Sprintf("remote %q", name))
+}
+
+func validateTarget(t Target, name string, remotes map[string]Template) error {
 	hasBin := strings.TrimSpace(t.Binary) != ""
 	if !hasBin {
 		if strings.TrimSpace(t.FileFlag) != "" {
@@ -338,8 +359,33 @@ func validateTarget(t Target, name string) error {
 		return fmt.Errorf("target %q: renderedPath is required when copyRendered is true", name)
 	}
 
+	// Validate template or templateRef (exactly one must be present)
+	hasTemplate := t.Template != nil
+	hasTemplateRef := t.TemplateRef != nil && strings.TrimSpace(*t.TemplateRef) != ""
+
+	if !hasTemplate && !hasTemplateRef {
+		return fmt.Errorf("target %q: either 'template' or 'templateRef' must be specified", name)
+	}
+	if hasTemplate && hasTemplateRef {
+		return fmt.Errorf("target %q: 'template' and 'templateRef' are mutually exclusive", name)
+	}
+
+	// If using templateRef, validate the reference exists
+	if hasTemplateRef {
+		refName := *t.TemplateRef
+		if _, exists := remotes[refName]; !exists {
+			return fmt.Errorf("target %q: templateRef %q not found in remotes", name, refName)
+		}
+	}
+
+	// Resolve template for commit hash validation
+	resolvedTemplate, err := ResolveTemplate(t, remotes)
+	if err != nil {
+		return fmt.Errorf("target %q: %w", name, err)
+	}
+
 	// Validate commit hash tracking configuration
-	return validateCommitHashTracking(t.Template, name)
+	return validateCommitHashTracking(*resolvedTemplate, name)
 }
 
 // IsReservedTargetName checks if a target name conflicts with subcommand names
@@ -399,8 +445,26 @@ func NewCmdVar(cmd string) VarValue { return VarValue{Kind: VarCmd, Arg: cmd} }
 // NewFileVar helper.
 func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path} }
 
+// ResolveTemplate returns the effective template for a target, either from inline template or templateRef
+func ResolveTemplate(t Target, remotes map[string]Template) (*Template, error) {
+	if t.Template != nil {
+		return t.Template, nil
+	}
+	if t.TemplateRef != nil && strings.TrimSpace(*t.TemplateRef) != "" {
+		refName := *t.TemplateRef
+		if template, exists := remotes[refName]; exists {
+			return &template, nil
+		}
+		return nil, fmt.Errorf("templateRef %q not found in remotes", refName)
+	}
+	return nil, fmt.Errorf("neither template nor templateRef specified")
+}
+
 // ValidateTarget exposes target validation rules for external callers.
-func ValidateTarget(t Target, name string) error { return validateTarget(t, name) }
+func ValidateTarget(t Target, name string) error {
+	// For backward compatibility, use empty remotes map when called without remotes
+	return validateTarget(t, name, map[string]Template{})
+}
 
 // ResolveLogLevel determines the effective log level from CLI flag, environment, and config
 // Precedence: CLI flag > Environment variable > Config file > Default ("info")

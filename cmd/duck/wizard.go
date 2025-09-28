@@ -130,55 +130,123 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 			}
 		}
 	}
-	repo, err := askRequired("Template repo (git URL): ", "repo")
-	if err != nil {
-		return config.Target{}, "", err
-	}
-	ref, err := ask("Template ref (branch/tag/commit) [HEAD]: ")
-	if err != nil {
-		return config.Target{}, "", err
-	}
-	path, err := askRequired("Template path inside repo (e.g. Makefile.tpl): ", "template path")
-	if err != nil {
-		return config.Target{}, "", err
-	}
-	if !strings.HasSuffix(path, ".tpl") {
-		fmt.Println("(note) It's common to suffix template files with .tpl for clarity.")
+	// Check if config has existing remotes to offer choice
+	cfg, _ := loadConfig() // Best effort - ignore errors for wizard flow
+	var availableRemotes []string
+	if cfg != nil && len(cfg.Remotes) > 0 {
+		for remoteName := range cfg.Remotes {
+			availableRemotes = append(availableRemotes, remoteName)
+		}
 	}
 
-	// Template security and advanced features
-	fmt.Println("\n--- Template Security & Advanced Options ---")
-
-	checksum, err := ask("Template checksum (SHA-256) [optional, for supply-chain security]: ")
-	if err != nil {
-		return config.Target{}, "", err
+	// Template source choice
+	fmt.Println("\n--- Template Configuration ---")
+	var templateChoice string
+	if len(availableRemotes) > 0 {
+		fmt.Println("You can either:")
+		fmt.Println("  1. Reference an existing remote template")
+		fmt.Println("  2. Define a new inline template")
+		for {
+			templateChoice, err = ask("Choose option (1/2): ")
+			if err != nil {
+				return config.Target{}, "", err
+			}
+			if templateChoice == "1" || templateChoice == "2" {
+				break
+			}
+			fmt.Println("Please enter '1' or '2'")
+		}
+	} else {
+		templateChoice = "2" // Only inline option available
+		fmt.Println("No existing remote templates found. Will create inline template.")
 	}
-	if strings.TrimSpace(checksum) != "" && len(strings.TrimSpace(checksum)) != 64 {
-		fmt.Println("(warning) Checksum should be 64 characters (SHA-256 hex). Continuing anyway.")
-	}
 
-	submodules, err := askBool("Fetch Git submodules? (y/N) [needed if template repo uses submodules]: ")
-	if err != nil {
-		return config.Target{}, "", err
-	}
+	var template *config.Template
+	var templateRef *string
 
-	trackCommitHash, err := askBool("Track commit hash? (y/N) [validates template hasn't changed]: ")
-	if err != nil {
-		return config.Target{}, "", err
-	}
+	if templateChoice == "1" {
+		// Reference existing remote
+		fmt.Println("\nAvailable remotes:")
+		for i, remoteName := range availableRemotes {
+			remote := cfg.Remotes[remoteName]
+			fmt.Printf("  %d. %s (repo: %s, path: %s)\n", i+1, remoteName, remote.Repo, remote.Path)
+		}
 
-	var autoUpdateOnChange bool
-	if trackCommitHash {
-		autoUpdateOnChange, err = askBool("Auto-update when commit changes? (y/N) [requires trackCommitHash]: ")
+		var selectedRemote string
+		for {
+			selectedRemote, err = ask("Enter remote name: ")
+			if err != nil {
+				return config.Target{}, "", err
+			}
+			if _, exists := cfg.Remotes[selectedRemote]; exists {
+				break
+			}
+			fmt.Printf("Remote '%s' not found. Available: %s\n", selectedRemote, strings.Join(availableRemotes, ", "))
+		}
+		templateRef = &selectedRemote
+	} else {
+		// Create inline template
+		repo, err := askRequired("Template repo (git URL): ", "repo")
 		if err != nil {
 			return config.Target{}, "", err
 		}
+		ref, err := ask("Template ref (branch/tag/commit) [HEAD]: ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		path, err := askRequired("Template path inside repo (e.g. Makefile.tpl): ", "template path")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		if !strings.HasSuffix(path, ".tpl") {
+			fmt.Println("(note) It's common to suffix template files with .tpl for clarity.")
+		}
+
+		// Template security and advanced features
+		fmt.Println("\n--- Template Security & Advanced Options ---")
+
+		checksum, err := ask("Template checksum (SHA-256) [optional, for supply-chain security]: ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		if strings.TrimSpace(checksum) != "" && len(strings.TrimSpace(checksum)) != 64 {
+			fmt.Println("(warning) Checksum should be 64 characters (SHA-256 hex). Continuing anyway.")
+		}
+
+		submodules, err := askBool("Fetch Git submodules? (y/N) [needed if template repo uses submodules]: ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+
+		trackCommitHash, err := askBool("Track commit hash? (y/N) [validates template hasn't changed]: ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+
+		var autoUpdateOnChange bool
+		if trackCommitHash {
+			autoUpdateOnChange, err = askBool("Auto-update when commit changes? (y/N) [requires trackCommitHash]: ")
+			if err != nil {
+				return config.Target{}, "", err
+			}
+		}
+		allowMissingAns, err := ask("Allow missing variables? (y/N): ")
+		if err != nil {
+			return config.Target{}, "", err
+		}
+		allowMissing := strings.HasPrefix(strings.ToLower(allowMissingAns), "y")
+
+		template = &config.Template{
+			Repo:               repo,
+			Ref:                ref,
+			Path:               path,
+			Checksum:           strings.TrimSpace(checksum),
+			AllowMissing:       allowMissing,
+			Submodules:         submodules,
+			TrackCommitHash:    trackCommitHash,
+			AutoUpdateOnChange: autoUpdateOnChange,
+		}
 	}
-	allowMissingAns, err := ask("Allow missing variables? (y/N): ")
-	if err != nil {
-		return config.Target{}, "", err
-	}
-	allowMissing := strings.HasPrefix(strings.ToLower(allowMissingAns), "y")
 
 	fmt.Println("\n--- Template Variables ---")
 	vars := map[string]config.VarValue{}
@@ -238,24 +306,34 @@ func runTargetWizard(isDefault bool) (config.Target, string, error) {
 		fmt.Printf("  Added variable '%s'\n", k)
 	}
 	targ := config.Target{
-		Description: description,
-		Binary:      binary,
-		FileFlag:    fileFlag,
-		Template: config.Template{
-			Repo:               repo,
-			Ref:                ref,
-			Path:               path,
-			Checksum:           strings.TrimSpace(checksum),
-			AllowMissing:       allowMissing,
-			Submodules:         submodules,
-			TrackCommitHash:    trackCommitHash,
-			AutoUpdateOnChange: autoUpdateOnChange,
-		},
+		Description:  description,
+		Binary:       binary,
+		FileFlag:     fileFlag,
+		Template:     template,
+		TemplateRef:  templateRef,
 		Variables:    vars,
 		RenderedPath: renderedPath,
 		CopyRendered: copyRendered,
 		Args:         config.ArgList(args),
 	}
+	// Validate target with remotes (use empty map if config not available)
+	var remotes map[string]config.Template
+	if cfg != nil {
+		remotes = cfg.Remotes
+	}
+	if remotes == nil {
+		remotes = make(map[string]config.Template)
+	}
+
+	// For validation, we need to temporarily resolve the template to validate it
+	// This ensures the template reference is valid if using templateRef
+	if targ.TemplateRef != nil {
+		if _, exists := remotes[*targ.TemplateRef]; !exists {
+			return config.Target{}, "", fmt.Errorf("templateRef %q not found in remotes", *targ.TemplateRef)
+		}
+	}
+
+	// Use the internal validation that doesn't require remotes for basic checks
 	if err := config.ValidateTarget(targ, name); err != nil {
 		return config.Target{}, "", err
 	}

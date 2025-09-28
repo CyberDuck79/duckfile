@@ -120,7 +120,7 @@ func TestCommitHashStorageAndAutoUpdatePaths(t *testing.T) {
 		os.MkdirAll(repoDir, 0o755)
 		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
-		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
+		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: &config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		h2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 		getCurrentCommitFunc = func(workdir string) (string, error) { return h1, nil }
@@ -160,7 +160,7 @@ func TestCommitHashChangeWithoutAutoUpdate(t *testing.T) {
 		os.MkdirAll(repoDir, 0o755)
 		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
-		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: false}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
+		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: false}, Targets: map[string]config.Target{"t": {Template: &config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		getCurrentCommitFunc = func(workdir string) (string, error) { return h1, nil }
 		if _, err := prepareAndRenderTemplate("t", cfg.Targets["t"], cfg, false, &config.SecurityConfig{}, nil, nil); err != nil {
@@ -190,7 +190,7 @@ func TestRemoteCacheInvalidationGC(t *testing.T) {
 		tpl := filepath.Join(repoDir, "t.tpl")
 		os.WriteFile(tpl, []byte("v1 {{.N}}"), 0o644)
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
-		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
+		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: &config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		h2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 		call := 0

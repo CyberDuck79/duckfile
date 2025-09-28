@@ -61,6 +61,17 @@ func runList(t *testing.T, dir string, flags ...string) string {
 	oldWd, _ := os.Getwd()
 	os.Chdir(dir)
 	defer os.Chdir(oldWd)
+
+	// Reset flags to prevent test contamination
+	// Find the list command and reset its flags
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.Name() == "list" {
+			cmd.Flags().Set("remote", "false")
+			cmd.Flags().Set("vars", "false")
+			cmd.Flags().Set("exec", "false")
+			break
+		}
+	}
 	// Capture global stdout because list uses fmt.Printf directly
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()

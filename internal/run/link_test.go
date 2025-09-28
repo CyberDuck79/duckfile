@@ -13,7 +13,8 @@ import (
 func TestLinkAndPruneRendered(t *testing.T) {
 	withTempWD(t, func() {
 		vars := map[string]any{"A": 1}
-		p1, _ := computeTemplatePaths("t", config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}, vars)
+		target1 := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		p1, _ := computeTemplatePaths("t", target1, target1.Template, vars)
 		os.MkdirAll(p1.renderedDir, 0o755)
 		os.WriteFile(p1.renderedFile, []byte("one"), 0o644)
 		oldKey, err := linkRendered(p1)
@@ -24,7 +25,8 @@ func TestLinkAndPruneRendered(t *testing.T) {
 			t.Fatalf("expected no old key first link, got %s", oldKey)
 		}
 		vars2 := map[string]any{"A": 2}
-		p2, _ := computeTemplatePaths("t", config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}, vars2)
+		target2 := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		p2, _ := computeTemplatePaths("t", target2, target2.Template, vars2)
 		os.MkdirAll(p2.renderedDir, 0o755)
 		os.WriteFile(p2.renderedFile, []byte("two"), 0o644)
 		oldKey2, err := linkRendered(p2)
@@ -78,7 +80,7 @@ func TestEnsureSymlinkReplacesFile(t *testing.T) {
 		defer func() { cloneFunc = origClone }()
 		os.MkdirAll(filepath.Join(".duck", "build"), 0o755)
 		os.WriteFile(filepath.Join(".duck", "build", "file"), []byte("old"), 0o644)
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}}}}
 		if err := Sync(cfg, "build", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync: %v", err)
 		}
@@ -113,7 +115,7 @@ func TestBrokenSymlinkUpdated(t *testing.T) {
 		os.MkdirAll(filepath.Join(".duck", "build"), 0o755)
 		link := filepath.Join(".duck", "build", "file")
 		os.Symlink("../objects/missing-key/file", link)
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}}}}
 		if err := Sync(cfg, "build", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync err: %v", err)
 		}

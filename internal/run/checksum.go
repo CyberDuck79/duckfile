@@ -12,13 +12,13 @@ import (
 
 // validateAndCacheTemplateChecksum validates the template checksum if
 // configured and stores it for change detection warnings.
-func validateAndCacheTemplateChecksum(target config.Target, src, remoteDir string) error {
-	if target.Template.Checksum == "" { // nothing to validate
+func validateAndCacheTemplateChecksum(target config.Target, template *config.Template, src, remoteDir string) error {
+	if template.Checksum == "" { // nothing to validate
 		return nil
 	}
 	sumFile := filepath.Join(remoteDir, "checksum.sha256")
 	if _, err := os.Stat(sumFile); err == nil { // existing checksum
-		if oldChecksum, err := os.ReadFile(sumFile); err == nil && string(oldChecksum) == target.Template.Checksum {
+		if oldChecksum, err := os.ReadFile(sumFile); err == nil && string(oldChecksum) == template.Checksum {
 			log.Warnf("template config changed but checksum unchanged (repo/ref/path/vars)")
 		}
 	}
@@ -27,10 +27,10 @@ func validateAndCacheTemplateChecksum(target config.Target, src, remoteDir strin
 		return fmt.Errorf("failed to read template for checksum validation: %w", err)
 	}
 	sum := fmt.Sprintf("%x", sha256.Sum256(b))
-	if sum != target.Template.Checksum {
-		return fmt.Errorf("template checksum mismatch: expected %s, got %s", target.Template.Checksum, sum)
+	if sum != template.Checksum {
+		return fmt.Errorf("template checksum mismatch: expected %s, got %s", template.Checksum, sum)
 	}
-	if err := os.WriteFile(sumFile, []byte(target.Template.Checksum), 0o644); err != nil {
+	if err := os.WriteFile(sumFile, []byte(template.Checksum), 0o644); err != nil {
 		return fmt.Errorf("failed to write checksum file: %w", err)
 	}
 	return nil

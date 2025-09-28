@@ -21,10 +21,10 @@ func TestFetchRemoteBasicSuccess(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "abcdef1234567890", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "tpls/a.tpl"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "tpls/a.tpl"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		if err := fetchRemote(false, target, paths); err != nil {
+		if err := fetchRemote(false, target, target.Template, paths); err != nil {
 			t.Fatalf("fetchRemote: %v", err)
 		}
 		content, err := os.ReadFile(paths.remoteTemplateFile)
@@ -50,10 +50,10 @@ func TestFetchRemoteWithChecksumSuccess(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: sum}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: sum}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		if err := fetchRemote(false, target, paths); err != nil {
+		if err := fetchRemote(false, target, target.Template, paths); err != nil {
 			t.Fatalf("fetchRemote: %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(paths.remoteDir, "checksum.sha256")); err != nil {
@@ -71,10 +71,10 @@ func TestFetchRemoteChecksumMismatch(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: "deadbeef"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "x", Path: "f.tpl", Checksum: "deadbeef"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		err := fetchRemote(false, target, paths)
+		err := fetchRemote(false, target, target.Template, paths)
 		if err == nil {
 			t.Fatalf("expected checksum mismatch error")
 		}
@@ -100,10 +100,10 @@ func TestFetchRemoteForceReplacesContent(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return useRepo, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		if err := fetchRemote(false, target, paths); err != nil {
+		if err := fetchRemote(false, target, target.Template, paths); err != nil {
 			t.Fatalf("first fetch: %v", err)
 		}
 		b1, _ := os.ReadFile(paths.remoteTemplateFile)
@@ -113,7 +113,7 @@ func TestFetchRemoteForceReplacesContent(t *testing.T) {
 
 		// Switch repo content and fetch again (simulate force path by just calling again)
 		useRepo = repoDir2
-		if err := fetchRemote(true, target, paths); err != nil {
+		if err := fetchRemote(true, target, target.Template, paths); err != nil {
 			t.Fatalf("second fetch: %v", err)
 		}
 		b2, _ := os.ReadFile(paths.remoteTemplateFile)
@@ -133,10 +133,10 @@ func TestFetchRemoteCloneErrorPropagates(t *testing.T) {
 		}
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		err := fetchRemote(false, target, paths)
+		err := fetchRemote(false, target, target.Template, paths)
 		if err == nil || !strings.Contains(err.Error(), "clone fail") {
 			t.Fatalf("expected clone error, got %v", err)
 		}
@@ -155,10 +155,10 @@ func TestFetchRemoteMissingTemplatePath(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "hash", nil }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "missing.tpl"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "missing.tpl"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		err := fetchRemote(false, target, paths)
+		err := fetchRemote(false, target, target.Template, paths)
 		if err == nil {
 			t.Fatalf("expected error for missing template path")
 		}
@@ -177,10 +177,10 @@ func TestFetchRemoteCommitHashCaptureFailure(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
 		getCurrentCommitFunc = func(dir string) (string, error) { return "", fmt.Errorf("git error") }
 
-		target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
-		paths, _ := computeTemplatePaths("t", target, map[string]any{})
+		target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		paths, _ := computeTemplatePaths("t", target, target.Template, map[string]any{})
 
-		if err := fetchRemote(false, target, paths); err != nil {
+		if err := fetchRemote(false, target, target.Template, paths); err != nil {
 			t.Fatalf("unexpected failure despite commit hash error: %v", err)
 		}
 		if hasCommitHashMetadata(paths.remoteDir) {
@@ -202,8 +202,9 @@ func TestFetchRemoteEndToEnd(t *testing.T) {
 		getCurrentCommitFunc = func(dir string) (string, error) { return "cafebabecafebabecafebabecafebabecafebabe", nil }
 		defer func() { getCurrentCommitFunc = origGetCurrent }()
 		vars := map[string]any{"A": 1}
-		p, _ := computeTemplatePaths("t", config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}, vars)
-		if err := fetchRemote(false, config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}, p); err != nil {
+		testTarget := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+		p, _ := computeTemplatePaths("t", testTarget, testTarget.Template, vars)
+		if err := fetchRemote(false, testTarget, testTarget.Template, p); err != nil {
 			t.Fatalf("fetchRemote: %v", err)
 		}
 		if _, err := os.Stat(p.remoteTemplateFile); err != nil {

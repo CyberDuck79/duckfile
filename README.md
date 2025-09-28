@@ -21,6 +21,7 @@ Duckfile lets you keep your Makefiles, Taskfiles, Helm values, and other config 
 - Go templates with Sprig functions
 - Custom delimiters to avoid collisions (e.g., Taskfile)
 - Deterministic caching with stable symlinks
+- Reusable remote definitions via a shared `remotes` registry
 - Checksum validation of remote templates
 - **Commit hash tracking and validation for reproducible builds**
 - **Host allow/deny lists for supply-chain security**
@@ -70,6 +71,14 @@ version: 1
 
 default: build
 
+remotes:
+  taskfile:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: v2.3.3
+    path: task/Taskfile.yml.tpl
+    delims: { left: "[[", right: "]]" }
+    allowMissing: true
+
 targets:
   build:
     binary: make
@@ -89,13 +98,7 @@ targets:
   test:
     binary: task
     fileFlag: --taskfile
-    template:
-      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: v2.3.3
-      path: task/Taskfile.yml.tpl
-      delims: { left: "[[", right: "]]" }  # avoid Task's {{ }}
-      allowMissing: true                   # missing vars => ""
-      trackCommitHash: true                # Track tags for updates
+    templateRef: taskfile
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64
@@ -110,6 +113,8 @@ targets:
     variables:
       AUTHOR: Cyberduck
 ```
+
+The top-level `remotes` map defines reusable remote configurations. Targets can reference them with `templateRef` to avoid duplicating Git locations and to share the same remote cache across workflows.
 
 2) Run
 ```sh

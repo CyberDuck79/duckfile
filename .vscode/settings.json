@@ -10,6 +10,7 @@
       "duck.yml",
       ".duck.yaml",
       ".duck.yml"
-    ]
+    ],
+    "file:///Users/flavienhenrion/Code/Go/duckfile/docs/duck.schema.json": "file:///Users/flavienhenrion/Code/Go/duckfile/duck.yaml"
   }
 }

@@ -9,9 +9,9 @@ import (
 
 // TestComputeTemplatePathsBasic (moved from run_helpers_test.go) validates path/key derivation and directory creation.
 func TestComputeTemplatePathsBasic(t *testing.T) {
-	target := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "dir/file.tpl"}}
+	target := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "dir/file.tpl"}}
 	vars := map[string]any{"A": 1}
-	paths, err := computeTemplatePaths("myt", target, vars)
+	paths, err := computeTemplatePaths("myt", target, target.Template, vars)
 	if err != nil {
 		t.Fatalf("computeTemplatePaths: %v", err)
 	}

@@ -36,7 +36,7 @@ func TestSyncPipelineHappyPath(t *testing.T) {
 		defer func() { execCommand = origExec }()
 		// Config
 		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{
-			"build": {Binary: "echo", FileFlag: "-f", Args: []string{"--mode", "run"}, Template: config.Template{Repo: "stub", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}},
+			"build": {Binary: "echo", FileFlag: "-f", Args: []string{"--mode", "run"}, Template: &config.Template{Repo: "stub", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}},
 		}}
 		// Run exec (passes through additional args)
 		if err := Exec(cfg, "default", []string{"--extra"}, defaultSecurityConfig(), nil, nil); err != nil {

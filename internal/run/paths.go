@@ -27,9 +27,9 @@ type templatePaths struct {
 // template preparation (remote cache dir, rendered cache dir, template file
 // locations, and symlink target). It also ensures the per-target directory
 // exists. Keys are deterministic and based on repo/ref/path and variables.
-func computeTemplatePaths(targetName string, target config.Target, vars map[string]any) (*templatePaths, error) {
-	base := strings.TrimSuffix(filepath.Base(target.Template.Path), ".tpl")
-	remoteKey, err := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
+func computeTemplatePaths(targetName string, target config.Target, template *config.Template, vars map[string]any) (*templatePaths, error) {
+	base := strings.TrimSuffix(filepath.Base(template.Path), ".tpl")
+	remoteKey, err := computeRemoteCacheKey(template.Repo, template.Ref, template.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func computeTemplatePaths(targetName string, target config.Target, vars map[stri
 	}
 	remoteDir := filepath.Join(".duck", "objects", "remote", remoteKey)
 	renderedDir := filepath.Join(".duck", "objects", "rendered", renderedKey)
-	remoteTemplateFile := filepath.Join(remoteDir, filepath.Base(target.Template.Path))
+	remoteTemplateFile := filepath.Join(remoteDir, filepath.Base(template.Path))
 	renderedFile := filepath.Join(renderedDir, base)
 	perTargetDir := filepath.Join(".duck", targetName)
 	if err := os.MkdirAll(perTargetDir, 0o755); err != nil {

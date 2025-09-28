@@ -6,6 +6,10 @@
   "properties": {
     "version": { "type": "integer", "enum": [1] },
     "default": { "type": "string" },
+    "remotes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/template" }
+    },
     "targets": {
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/target" }
@@ -32,17 +36,17 @@
   "definitions": {
     "target": {
       "type": "object",
-      "required": ["template"],
       "properties": {
         "binary": { "type": "string" },
         "fileFlag": { "type": "string" },
         "template": { "$ref": "#/definitions/template" },
+        "templateRef": { "type": "string" },
         "variables": {
           "type": "object",
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         },
         "renderedPath": { "type": "string" },
-        "copyRendered": { "type": "boolean", "description": "If true, rendered file is copied instead of symlinked. Must specify renderedPath." },
+        "copyRendered": { "type": "boolean", "default": false, "description": "If true, rendered file is copied instead of symlinked. Must specify renderedPath." },
         "args": {
           "oneOf": [
             { "type": "string" },
@@ -52,6 +56,12 @@
       },
       "additionalProperties": false,
       "allOf": [
+        {
+          "oneOf": [
+            { "required": ["template"], "not": { "required": ["templateRef"] } },
+            { "required": ["templateRef"], "not": { "required": ["template"] } }
+          ]
+        },
         {
           "if": { "not": { "required": ["binary"] } },
           "then": {
@@ -70,7 +80,7 @@
           }
         },
         {
-          "if": { "properties": { "copyRendered": { "const": true } } },
+          "if": { "properties": { "copyRendered": { "const": true } }, "required": ["copyRendered"] },
           "then": { "required": ["renderedPath"] }
         }
       ]
@@ -90,8 +100,8 @@
           },
           "additionalProperties": false
         },
-        "allowMissing": { "type": "boolean" },
-        "submodules": { "type": "boolean" },
+        "allowMissing": { "type": "boolean", "default": false },
+        "submodules": { "type": "boolean", "default": false },
         "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
         "trackCommitHash": { "type": "boolean" },
         "autoUpdateOnChange": { "type": "boolean" }

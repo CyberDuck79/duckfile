@@ -17,6 +17,7 @@ The file `duck.yaml` (or `duck.yml`, `.duck.yaml`, `.duck.yml`) is the single so
 |---|---|---|---|
 | `version` | Integer | ✔ | Specification version understood by this release. Start with `1`. |
 | `default` | String | ✔ | Key of the default target inside `targets`. Runs when user executes `duck <args>`. |
+| `remotes` | Mapping <string, Template> | ✖ | Shared remote template definitions that can be referenced by targets. Each value uses the same schema as `template`. |
 | `targets` | Mapping <string, Target> | ✔ | Declared targets executed via `duck <target> <args>`. Must contain the default key. |
 | `settings` | Settings object | ✖ | Global switches (cache dir, log level, locked mode). **Security settings like host allow/deny lists are configured via environment variables or CLI flags, not in this file**. |
 
@@ -42,7 +43,8 @@ Use `duck exec <target>` to explicitly execute targets that conflict with subcom
 | `description` | String | ✖ | Optional longer explanation shown in `duck list`. |
 | `binary` | String | ✖ | Executable to launch (e.g. `make`, `task`, `helm`). Optional for sync/clean-only workflows. |
 | `fileFlag` | String | Cond. | Required when `binary` is set. CLI flag that injects the rendered file (e.g. `-f`, `--taskfile`, `-fvalues`). |
-| `template` | Template object | ✔ | Where to find the template file. |
+| `template` | Template object | Cond. | Inline remote definition. Required when `templateRef` is absent. |
+| `templateRef` | String | Cond. | Name of a template declared in top-level `remotes`. Mutually exclusive with `template`. |
 | `variables` | Mapping <string, VarValue> | ✖ | Parameters used during template rendering. |
 | `renderedPath` | String | ✖/✔ | Destination path used by the tool. Default: `.duck/<target>/<basename>`. **Required if `copyRendered: true`.** |
 | `copyRendered` | Boolean | ✖ | If true, the rendered file is copied to `renderedPath` instead of symlinked. Use for pushable configs or environments without symlink support. |
@@ -58,11 +60,42 @@ Use `duck exec <target>` to explicitly execute targets that conflict with subcom
 | `delims` | Object `{left,right}` | ✖ | Override Go template delimiters (`{{` / `}}` by default). |
 | `allowMissing` | Boolean | ✖ | If `true`, missing keys render as zero values (empty strings). Default `false` (strict). |
 | `submodules` | Boolean | ✖ | Fetch submodules (`--recurse-submodules`). Default `false`. |
-| `submodules` | Boolean | ✖ | If true, fetch submodules using `git clone --recurse-submodules` and `git submodule update --init --recursive`. Default `false`. |
-| `submodules` | Boolean | ✖ | If true, fetch submodules using `git clone --recurse-submodules` and `git submodule update --init --recursive`. Default `false`. |
 | `checksum` | SHA-256 | ✖ | Expected hash of the raw template for supply-chain safety. If provided, Duckfile will validate the fetched template file against this checksum. |
 | `trackCommitHash` | Boolean | ✖ | Enable commit hash validation and tracking. When `true`, Duckfile stores the actual commit hash after fetching and validates it hasn't changed on subsequent runs. Default `false`. **Note: Cannot be used with commit hash refs (40-character hex strings).** |
 | `autoUpdateOnChange` | Boolean | ✖ | Automatically update cache when remote commit hash changes. Only valid when `trackCommitHash` is `true`. Default `false`. When enabled, cache is automatically invalidated and re-fetched if the remote commit hash differs from the stored value. |
+
+### Remote registry (`remotes`)
+
+The optional top-level `remotes` map lets you define a remote template once and reference it from multiple targets. Each entry uses the [Template object](#4-template-object) schema and is keyed by a unique name:
+
+```yaml
+remotes:
+  shared-values:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: main
+    path: values.yaml.tpl
+```
+
+Targets can then reference the shared definition via `templateRef`:
+
+```yaml
+targets:
+  frontend:
+    templateRef: shared-values
+    variables:
+      SERVICE: web
+  backend:
+    templateRef: shared-values
+    variables:
+      SERVICE: api
+```
+
+Rules:
+
+- `template` and `templateRef` are mutually exclusive; exactly one must be supplied per target.
+- Referenced names must exist in `remotes`.
+- The resolved template is immutable per target; overrides are not yet supported. Use inline `template` when per-target adjustments are required.
+- Cache keys are derived from the resolved template definition, so targets that reference the same remote share the remote cache layer.
 
 ## 5. Variable value (`VarValue`)
 
@@ -536,11 +569,21 @@ BUILD_DATE=2025-08-18
 DEBUG=true
 ```
 
-**Example `duck.yaml` configuration:**
+**Example `duck.yaml` configuration with shared remotes:**
 ```yaml
 version: 1
 
 default: build
+
+remotes:
+  taskfile:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: v2.3.3
+    path: task/Taskfile.yml.tpl
+    delims: { left: "[[", right: "]]" }
+    allowMissing: true
+    trackCommitHash: true
+    autoUpdateOnChange: false
 
 targets:
   build:
@@ -561,13 +604,7 @@ targets:
   test:
     binary: task
     fileFlag: --taskfile
-    template:
-      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: v2.3.3
-      path: task/Taskfile.yml.tpl
-      delims: { left: "[[", right: "]]" }
-      allowMissing: true
-      trackCommitHash: true  # Track without auto-update for tags
+    templateRef: taskfile
     variables:
       GO_VERSION: !env GO_VERSION
       PLATFORM: linux/amd64

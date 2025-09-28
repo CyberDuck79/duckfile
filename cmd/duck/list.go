@@ -63,13 +63,45 @@ EXAMPLES
 				}
 				fmt.Printf("%-12s %-12s %-s\n", label, bin, t.Description)
 				if listShowRemote {
-					fmt.Printf("    repo: %s\n", t.Template.Repo)
-					ref := t.Template.Ref
+					// Resolve template to show actual configuration
+					template, err := config.ResolveTemplate(t, cfg.Remotes)
+					if err != nil {
+						fmt.Printf("    ERROR: Failed to resolve template: %v\n", err)
+						return
+					}
+
+					// Show template source (inline vs remote reference)
+					if t.TemplateRef != nil {
+						fmt.Printf("    remote: %s (references shared template)\n", *t.TemplateRef)
+					} else {
+						fmt.Printf("    template: inline\n")
+					}
+
+					fmt.Printf("    repo: %s\n", template.Repo)
+					ref := template.Ref
 					if ref == "" {
 						ref = "HEAD"
 					}
 					fmt.Printf("    ref: %s\n", ref)
-					fmt.Printf("    path: %s\n", t.Template.Path)
+					fmt.Printf("    path: %s\n", template.Path)
+
+					// Show additional template properties if set
+					if template.Checksum != "" {
+						fmt.Printf("    checksum: %s\n", template.Checksum)
+					}
+					if template.TrackCommitHash {
+						fmt.Printf("    commit tracking: enabled")
+						if template.AutoUpdateOnChange {
+							fmt.Printf(" (auto-update)")
+						}
+						fmt.Printf("\n")
+					}
+					if template.AllowMissing {
+						fmt.Printf("    allow missing vars: true\n")
+					}
+					if template.Submodules {
+						fmt.Printf("    submodules: enabled\n")
+					}
 				}
 				if listShowVars && len(t.Variables) > 0 {
 					keys := make([]string, 0, len(t.Variables))

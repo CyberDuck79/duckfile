@@ -19,7 +19,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 		{
 			name: "valid commit hash tracking enabled",
 			target: Target{
-				Template: Template{
+				Template: &Template{
 					Repo:            "https://github.com/test/repo.git",
 					Ref:             "main",
 					Path:            "test.tpl",
@@ -32,7 +32,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 		{
 			name: "valid auto-update with commit hash tracking",
 			target: Target{
-				Template: Template{
+				Template: &Template{
 					Repo:               "https://github.com/test/repo.git",
 					Ref:                "main",
 					Path:               "test.tpl",
@@ -46,7 +46,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 		{
 			name: "invalid auto-update without commit hash tracking",
 			target: Target{
-				Template: Template{
+				Template: &Template{
 					Repo:               "https://github.com/test/repo.git",
 					Ref:                "main",
 					Path:               "test.tpl",
@@ -61,7 +61,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 		{
 			name: "commit hash tracking with commit hash ref",
 			target: Target{
-				Template: Template{
+				Template: &Template{
 					Repo:            "https://github.com/test/repo.git",
 					Ref:             "a1b2c3d4e5f6789012345678901234567890abcd",
 					Path:            "test.tpl",
@@ -75,7 +75,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 		{
 			name: "auto-update with commit hash ref",
 			target: Target{
-				Template: Template{
+				Template: &Template{
 					Repo:               "https://github.com/test/repo.git",
 					Ref:                "a1b2c3d4e5f6789012345678901234567890abcd",
 					Path:               "test.tpl",
@@ -91,7 +91,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTarget(tt.target, tt.targetName)
+			err := validateTarget(tt.target, tt.targetName, nil)
 
 			if tt.expectErr {
 				if err == nil {

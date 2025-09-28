@@ -58,7 +58,7 @@ func TestSyncVariableChangePrunesOldKey(t *testing.T) {
 			return dst, nil
 		}
 		defer func() { cloneFunc = origClone }()
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}}}}
 		if err := Sync(cfg, "", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync1: %v", err)
 		}
@@ -99,7 +99,7 @@ func TestSyncIdempotentWithoutForce(t *testing.T) {
 			return dst, nil
 		}
 		defer func() { cloneFunc = origClone }()
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
 		if err := Sync(cfg, "", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync1: %v", err)
 		}
@@ -139,7 +139,7 @@ func TestSyncForceReRendersSameKey(t *testing.T) {
 			return dst, nil
 		}
 		defer func() { cloneFunc = origClone }()
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("X")}}}}
 		if err := Sync(cfg, "", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync1: %v", err)
 		}
@@ -321,7 +321,7 @@ func TestPrepareTemplatePrunesOldRenderedCache(t *testing.T) {
 		defer func() { cloneFunc = origClone }()
 
 		// Initial target/config
-		target := config.Target{Template: config.Template{Repo: "stub", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}, RenderedPath: "out.txt"}
+		target := config.Target{Template: &config.Template{Repo: "stub", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("one")}, RenderedPath: "out.txt"}
 		cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": target}}
 
 		res1, err := prepareAndRenderTemplate("t", target, cfg, false, &config.SecurityConfig{}, nil, nil)
@@ -386,7 +386,7 @@ func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { cloneCalls++; return repoDir, nil }
 		defer func() { cloneFunc = origClone }()
 
-		target := config.Target{Template: config.Template{Repo: "https://example/repo.git", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("Alice")}, RenderedPath: "out.txt"}
+		target := config.Target{Template: &config.Template{Repo: "https://example/repo.git", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("Alice")}, RenderedPath: "out.txt"}
 		cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": target}}
 
 		// First render

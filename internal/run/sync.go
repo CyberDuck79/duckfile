@@ -98,8 +98,14 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 	modifiedTarget := config.ApplyPolicyOverrides(&target, securityCfg)
 	target = *modifiedTarget
 
+	// Resolve template (either inline or from remote reference)
+	template, err := config.ResolveTemplate(target, cfg.Remotes)
+	if err != nil {
+		return nil, fmt.Errorf("template resolution failed: %w", err)
+	}
+
 	// Existing repository access validation (kept for backward compatibility)
-	if err := config.ValidateRepoAccess(target.Template.Repo, securityCfg); err != nil {
+	if err := config.ValidateRepoAccess(template.Repo, securityCfg); err != nil {
 		return nil, fmt.Errorf("repository access denied: %w", err)
 	}
 
@@ -108,25 +114,25 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		return nil, err
 	}
 
-	paths, err := computeTemplatePaths(targetName, target, vars)
+	paths, err := computeTemplatePaths(targetName, target, template, vars)
 	if err != nil {
 		return nil, err
 	}
 
-	trackCommitHash := config.ResolveTrackCommitHash(trackCommitHashFlag, &target.Template, cfg)
+	trackCommitHash := config.ResolveTrackCommitHash(trackCommitHashFlag, template, cfg)
 
-	needRemote, err := decideRemoteFetch(force, trackCommitHash, target, cfg, autoUpdateOnChangeFlag, paths)
+	needRemote, err := decideRemoteFetch(force, trackCommitHash, target, template, cfg, autoUpdateOnChangeFlag, paths)
 	if err != nil {
 		return nil, err
 	}
 
 	if needRemote {
-		if err := fetchRemote(force, target, paths); err != nil {
+		if err := fetchRemote(force, target, template, paths); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := ensureRendered(force, needRemote, target, vars, paths); err != nil {
+	if err := ensureRendered(force, needRemote, target, template, vars, paths); err != nil {
 		return nil, err
 	}
 
@@ -151,8 +157,8 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 
 			// New fields for environment variables
 			RepoPath:     paths.remoteDir,
-			RepoURL:      target.Template.Repo,
-			RepoRef:      target.Template.Ref,
+			RepoURL:      template.Repo,
+			RepoRef:      template.Ref,
 			TemplatePath: paths.remoteTemplateFile,
 			TargetName:   targetName,
 			CacheDir:     filepath.Join(".duck", targetName),
@@ -173,8 +179,8 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 
 		// New fields for environment variables
 		RepoPath:     paths.remoteDir,
-		RepoURL:      target.Template.Repo,
-		RepoRef:      target.Template.Ref,
+		RepoURL:      template.Repo,
+		RepoRef:      template.Ref,
 		TemplatePath: paths.remoteTemplateFile,
 		TargetName:   targetName,
 		CacheDir:     filepath.Join(".duck", targetName),

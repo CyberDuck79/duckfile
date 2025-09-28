@@ -23,7 +23,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo: "github.com/test/repo",
 							Ref:  "main",
 							Path: "template.yml",
@@ -43,7 +43,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo: "github.com/test/repo",
 							Ref:  "v1.0.0",
 							Path: "template.yml",
@@ -70,7 +70,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo:     "github.com/test/repo",
 							Ref:      "v1.0.0",
 							Path:     "template.yml",
@@ -96,7 +96,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo: "malicious.com/bad/repo",
 							Ref:  "v1.0.0",
 							Path: "template.yml",
@@ -119,7 +119,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo: "github.com/test/repo",
 							Ref:  "v1.0.0",
 							Path: "template.yml",
@@ -146,7 +146,7 @@ func TestPolicyEnforcementIntegration(t *testing.T) {
 					"test": {
 						Binary:   "echo",
 						FileFlag: "-f",
-						Template: config.Template{
+						Template: &config.Template{
 							Repo:               "github.com/test/repo",
 							Ref:                "v1.0.0",
 							Path:               "template.yml",
@@ -209,7 +209,7 @@ func TestPolicyOverrideApplication(t *testing.T) {
 			"test": {
 				Binary:   "echo",
 				FileFlag: "-f",
-				Template: config.Template{
+				Template: &config.Template{
 					Repo:               "github.com/test/repo",
 					Ref:                "v1.0.0",
 					Path:               "template.yml",

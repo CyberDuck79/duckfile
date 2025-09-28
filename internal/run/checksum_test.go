@@ -22,18 +22,20 @@ func TestValidateAndCacheTemplateChecksum(t *testing.T) {
 			t.Fatalf("write template: %v", err)
 		}
 		checksum := fmt.Sprintf("%x", sha256.Sum256(content))
-		target := config.Target{Template: config.Template{Checksum: checksum}}
+		template := &config.Template{Checksum: checksum}
+		target := config.Target{Template: template}
 		// success
-		if err := validateAndCacheTemplateChecksum(target, file, "."); err != nil {
+		if err := validateAndCacheTemplateChecksum(target, template, file, "."); err != nil {
 			t.Fatalf("valid checksum: %v", err)
 		}
 		// mismatch
-		bad := config.Target{Template: config.Template{Checksum: "deadbeef"}}
-		if err := validateAndCacheTemplateChecksum(bad, file, "."); err == nil {
+		badTemplate := &config.Template{Checksum: "deadbeef"}
+		bad := config.Target{Template: badTemplate}
+		if err := validateAndCacheTemplateChecksum(bad, badTemplate, file, "."); err == nil {
 			t.Fatal("expected mismatch error")
 		}
 		// warning/reuse (invokes log warning internally if config changed but checksum same) - should not error
-		if err := validateAndCacheTemplateChecksum(target, file, "."); err != nil {
+		if err := validateAndCacheTemplateChecksum(target, template, file, "."); err != nil {
 			t.Fatalf("repeat valid checksum: %v", err)
 		}
 	})

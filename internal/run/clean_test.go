@@ -28,8 +28,8 @@ func TestCleanRemovesOnlyTargetArtifacts(t *testing.T) {
 		}
 		defer func() { cloneFunc = origClone }()
 		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{
-			"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("ONE")}},
-			"other": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("TWO")}},
+			"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("ONE")}},
+			"other": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"V": config.NewLiteralVar("TWO")}},
 		}}
 		if err := Sync(cfg, "", false, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("sync all: %v", err)

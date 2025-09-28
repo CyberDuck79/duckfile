@@ -17,7 +17,7 @@ func TestDecideRemoteFetchMatrix(t *testing.T) {
 	defer os.Chdir(old)
 
 	vars := map[string]any{"X": 1}
-	baseTarget := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
+	baseTarget := config.Target{Template: &config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
 	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": baseTarget}, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}}
 	autoFlag := true
 
@@ -46,7 +46,7 @@ func TestDecideRemoteFetchMatrix(t *testing.T) {
 	for _, c := range cases {
 		// isolate each case to avoid cross-contamination of remote cache state
 		_ = os.RemoveAll(".duck")
-		p, err := computeTemplatePaths("t", baseTarget, vars)
+		p, err := computeTemplatePaths("t", baseTarget, baseTarget.Template, vars)
 		if err != nil {
 			t.Fatalf("%s: paths err: %v", c.name, err)
 		}
@@ -66,7 +66,7 @@ func TestDecideRemoteFetchMatrix(t *testing.T) {
 		} else {
 			getRemoteCommitFunc = func(repo, ref string) (string, error) { return "ignored", nil }
 		}
-		need, err := decideRemoteFetch(c.force, c.track, baseTarget, cfg, &autoFlag, p)
+		need, err := decideRemoteFetch(c.force, c.track, baseTarget, baseTarget.Template, cfg, &autoFlag, p)
 		if err != nil {
 			t.Fatalf("%s: decideRemoteFetch err: %v", c.name, err)
 		}

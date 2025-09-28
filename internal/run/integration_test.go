@@ -50,7 +50,7 @@ func TestSyncAndCleanWithStubClone(t *testing.T) {
 	defer func() { cloneFunc = origClone }()
 
 	defaultTarget := "build"
-	cfg := &config.DuckConf{Version: 1, Default: defaultTarget, Targets: map[string]config.Target{defaultTarget: {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}}}}
+	cfg := &config.DuckConf{Version: 1, Default: defaultTarget, Targets: map[string]config.Target{defaultTarget: {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("world")}}}}
 
 	// override execCommand to no-op for binary execution
 	origExec := execCommand
@@ -102,7 +102,7 @@ func TestChecksumValidation(t *testing.T) {
 	target := config.Target{
 		Binary:   "echo",
 		FileFlag: "-f",
-		Template: config.Template{
+		Template: &config.Template{
 			Repo:     "repo",
 			Path:     "file.tpl",
 			Checksum: checksum,
@@ -197,7 +197,7 @@ func TestChecksumValidationSync(t *testing.T) {
 
 	// Initial config (no binary since this is sync-only)
 	target := config.Target{
-		Template: config.Template{
+		Template: &config.Template{
 			Repo:     "repo",
 			Path:     "file.tpl",
 			Checksum: checksum,
@@ -320,7 +320,7 @@ func TestCommitHashTrackingIntegration(t *testing.T) {
 		},
 		Targets: map[string]config.Target{
 			"test": {
-				Template: config.Template{
+				Template: &config.Template{
 					Repo: "https://github.com/test/repo.git",
 					Ref:  "main",
 					Path: "file.tpl",
@@ -410,7 +410,7 @@ func TestCommitHashTrackingWithAutoUpdate(t *testing.T) {
 		},
 		Targets: map[string]config.Target{
 			"test": {
-				Template: config.Template{
+				Template: &config.Template{
 					Repo: "https://github.com/test/repo.git",
 					Ref:  "main",
 					Path: "file.tpl",
@@ -503,7 +503,7 @@ func TestCommitHashTrackingWithoutAutoUpdate(t *testing.T) {
 		},
 		Targets: map[string]config.Target{
 			"test": {
-				Template: config.Template{
+				Template: &config.Template{
 					Repo: "https://github.com/test/repo.git",
 					Ref:  "main",
 					Path: "file.tpl",
@@ -597,7 +597,7 @@ func TestCommitHashTrackingNetworkFailure(t *testing.T) {
 		},
 		Targets: map[string]config.Target{
 			"test": {
-				Template: config.Template{
+				Template: &config.Template{
 					Repo: "https://github.com/test/repo.git",
 					Ref:  "main",
 					Path: "file.tpl",
@@ -685,7 +685,7 @@ func TestExecArgumentOrdering(t *testing.T) {
 	execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command(name, args...) }
 	defer func() { execCommand = origExec }()
 
-	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "f.tpl"}, Args: []string{"--verbose"}}}}
+	cfg := &config.DuckConf{Version: 1, Targets: map[string]config.Target{"t": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "f.tpl"}, Args: []string{"--verbose"}}}}
 	if err := Exec(cfg, "t", []string{"--extra"}, &config.SecurityConfig{}, nil, nil); err != nil {
 		t.Fatalf("exec: %v", err)
 	}
@@ -758,7 +758,7 @@ test-script > ` + outputFile
 			"test": {
 				Binary:   "script-redirect",
 				FileFlag: "-f",
-				Template: config.Template{
+				Template: &config.Template{
 					Repo: "https://github.com/example/repo.git",
 					Ref:  "v1.0.0",
 					Path: "test.tpl",

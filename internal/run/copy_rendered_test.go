@@ -28,7 +28,7 @@ func TestCopyRenderedTarget(t *testing.T) {
 		defer func() { cloneFunc = origClone }()
 		cfg := &config.DuckConf{Version: 1, Default: "copy", Targets: map[string]config.Target{
 			"copy": {
-				Template:     config.Template{Repo: "stub", Path: "file.tpl"},
+				Template:     &config.Template{Repo: "stub", Path: "file.tpl"},
 				Variables:    map[string]config.VarValue{"V": config.NewLiteralVar("OK")},
 				RenderedPath: "copied.txt",
 				CopyRendered: true,
@@ -70,7 +70,7 @@ func TestSelfTarget(t *testing.T) {
 		defer func() { cloneFunc = origClone }()
 		cfg := &config.DuckConf{Version: 1, Default: "self", Targets: map[string]config.Target{
 			"self": {
-				Template:     config.Template{Repo: "stub", Path: "duck.yaml.tpl"},
+				Template:     &config.Template{Repo: "stub", Path: "duck.yaml.tpl"},
 				Variables:    map[string]config.VarValue{"VERSION": config.NewLiteralVar("2")},
 				RenderedPath: "duck.yaml",
 				CopyRendered: true,

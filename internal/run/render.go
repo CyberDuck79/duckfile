@@ -13,7 +13,7 @@ import (
 	sprig "github.com/Masterminds/sprig/v3"
 )
 
-func renderTemplate(src, dst string, targ config.Target, data map[string]any) error {
+func renderTemplate(src, dst string, targ config.Target, templateConfig *config.Template, data map[string]any) error {
 	raw, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -26,11 +26,11 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 
 	// Delimiters: default {{ }}, overridable by config
 	left, right := "{{", "}}"
-	if targ.Template.Delims != nil {
-		if l := strings.TrimSpace(targ.Template.Delims.Left); l != "" {
+	if templateConfig.Delims != nil {
+		if l := strings.TrimSpace(templateConfig.Delims.Left); l != "" {
 			left = l
 		}
-		if r := strings.TrimSpace(targ.Template.Delims.Right); r != "" {
+		if r := strings.TrimSpace(templateConfig.Delims.Right); r != "" {
 			right = r
 		}
 	}
@@ -38,7 +38,7 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 	tmpl := template.New(filepath.Base(src)).Funcs(funcMap).Delims(left, right)
 
 	// Missing-key policy: allowMissing => zero (empty strings), else strict error
-	if targ.Template.AllowMissing {
+	if templateConfig.AllowMissing {
 		tmpl = tmpl.Option("missingkey=zero")
 	} else {
 		tmpl = tmpl.Option("missingkey=error")
@@ -62,7 +62,7 @@ func renderTemplate(src, dst string, targ config.Target, data map[string]any) er
 
 // ensureRendered renders the template if needed based on force, remote change,
 // or absence of a rendered object. It also records the remote key linkage.
-func ensureRendered(force, needRemote bool, target config.Target, vars map[string]any, paths *templatePaths) error {
+func ensureRendered(force, needRemote bool, target config.Target, templateConfig *config.Template, vars map[string]any, paths *templatePaths) error {
 	needRender := force
 	if _, err := os.Stat(paths.renderedFile); os.IsNotExist(err) {
 		needRender = true
@@ -77,7 +77,7 @@ func ensureRendered(force, needRemote bool, target config.Target, vars map[strin
 	if err := os.MkdirAll(paths.renderedDir, 0o755); err != nil {
 		return err
 	}
-	if err := renderTemplate(paths.remoteTemplateFile, paths.renderedFile, target, vars); err != nil {
+	if err := renderTemplate(paths.remoteTemplateFile, paths.renderedFile, target, templateConfig, vars); err != nil {
 		return err
 	}
 	_ = os.WriteFile(filepath.Join(paths.renderedDir, "remote.key"), []byte(paths.remoteKey), 0o644)

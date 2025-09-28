@@ -87,12 +87,12 @@ func TestAllowMissingVsStrict(t *testing.T) {
 		}
 		defer func() { cloneFunc = origClone }()
 		// strict -> error
-		strictCfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "f.tpl"}, Variables: map[string]config.VarValue{"VAR1": config.NewLiteralVar("one")}}}}
+		strictCfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "f.tpl"}, Variables: map[string]config.VarValue{"VAR1": config.NewLiteralVar("one")}}}}
 		if err := Sync(strictCfg, "default", false, defaultSecurityConfigVars(), nil, nil); err == nil {
 			t.Fatalf("expected error for missing variable in strict mode")
 		}
 		// allowMissing -> empty value
-		allowCfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "f.tpl", AllowMissing: true}, Variables: map[string]config.VarValue{"VAR1": config.NewLiteralVar("one")}}}}
+		allowCfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "echo", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "f.tpl", AllowMissing: true}, Variables: map[string]config.VarValue{"VAR1": config.NewLiteralVar("one")}}}}
 		// stub exec so Exec path safe
 		origExec := execCommand
 		execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command("true") }

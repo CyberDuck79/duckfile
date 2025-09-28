@@ -14,7 +14,7 @@ import (
 // TestExecMissingBinaryError ensures executing a target lacking a binary returns
 // a helpful guidance error instead of proceeding.
 func TestExecMissingBinaryError(t *testing.T) {
-	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Template: config.Template{Repo: "r", Path: "file.tpl"}}}}
+	cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Template: &config.Template{Repo: "r", Path: "file.tpl"}}}}
 	if err := Exec(cfg, "default", nil, defaultSecurityConfig(), nil, nil); err == nil || !strings.Contains(err.Error(), "no binary configured") {
 		t.Fatalf("expected missing binary error, got %v", err)
 	}
@@ -41,7 +41,7 @@ func TestExecUnderlyingBinaryFailure(t *testing.T) {
 		origExec := execCommand
 		execCommand = func(name string, args ...string) *exec.Cmd { return exec.Command("sh", "-c", "exit 5") }
 		defer func() { execCommand = origExec }()
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "dummy", FileFlag: "-f", Template: config.Template{Repo: "stub", Path: "file.tpl"}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "dummy", FileFlag: "-f", Template: &config.Template{Repo: "stub", Path: "file.tpl"}}}}
 		if err := Exec(cfg, "default", nil, defaultSecurityConfig(), nil, nil); err == nil {
 			t.Fatalf("expected failure from underlying binary")
 		}
@@ -72,7 +72,7 @@ func TestExecuteTargetArgumentOrdering(t *testing.T) {
 			return exec.Command("echo")
 		}
 		defer func() { execCommand = origExec }()
-		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "mybin", FileFlag: "-f", Args: []string{"--opt", "123"}, Template: config.Template{Repo: "stub", Path: "t.tpl"}}}}
+		cfg := &config.DuckConf{Version: 1, Default: "build", Targets: map[string]config.Target{"build": {Binary: "mybin", FileFlag: "-f", Args: []string{"--opt", "123"}, Template: &config.Template{Repo: "stub", Path: "t.tpl"}}}}
 		if err := Exec(cfg, "default", []string{"--extra", "val"}, defaultSecurityConfig(), nil, nil); err != nil {
 			t.Fatalf("exec: %v", err)
 		}
@@ -129,7 +129,7 @@ func TestExecuteTargetEnvironmentVariables(t *testing.T) {
 		target := config.Target{
 			Binary:   "test-binary",
 			FileFlag: "-f",
-			Template: config.Template{
+			Template: &config.Template{
 				Repo: "https://github.com/test/repo.git",
 				Ref:  "main",
 				Path: "test.tpl",
@@ -269,7 +269,7 @@ func TestEnvironmentVariablesWithDefaultRef(t *testing.T) {
 		target := config.Target{
 			Binary:   "test-binary",
 			FileFlag: "-f",
-			Template: config.Template{
+			Template: &config.Template{
 				Repo: "https://github.com/test/repo.git",
 				Ref:  "", // Empty ref should default to "main"
 				Path: "test.tpl",
