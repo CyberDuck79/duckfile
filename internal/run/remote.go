@@ -10,6 +10,14 @@ import (
 	"github.com/CyberDuck79/duckfile/internal/log"
 )
 
+// writeMetadataFile writes metadata to a JSON file with error logging
+func writeMetadataFile(filePath string, metadata map[string]string, description string) {
+	metadataBytes, _ := json.Marshal(metadata)
+	if err := os.WriteFile(filePath, metadataBytes, 0o644); err != nil {
+		log.Warnf("failed to write %s: %v", description, err)
+	}
+}
+
 // fetchRemote clones (or reclones into) the remote cache directory at the repository level.
 // This is now separated from template extraction to enable sharing across multiple templates.
 func fetchRemote(force bool, resolved config.ResolvedTemplate, paths *templatePaths) error {
@@ -33,10 +41,7 @@ func fetchRemote(force bool, resolved config.ResolvedTemplate, paths *templatePa
 		"repo": resolved.Repo,
 		"ref":  resolved.Ref,
 	}
-	metadataBytes, _ := json.Marshal(metadata)
-	if err := os.WriteFile(filepath.Join(paths.remoteDir, "metadata.json"), metadataBytes, 0o644); err != nil {
-		log.Warnf("failed to write remote metadata: %v", err)
-	}
+	writeMetadataFile(filepath.Join(paths.remoteDir, "metadata.json"), metadata, "remote metadata")
 
 	// capture commit hash (best-effort) at remote level
 	if commitHash, err := getCurrentCommitFunc(repoDir); err != nil {
@@ -83,10 +88,7 @@ func extractTemplate(resolved config.ResolvedTemplate, paths *templatePaths) err
 	if resolved.Checksum != "" {
 		metadata["checksum"] = resolved.Checksum
 	}
-	metadataBytes, _ := json.Marshal(metadata)
-	if err := os.WriteFile(filepath.Join(paths.templateDir, "metadata.json"), metadataBytes, 0o644); err != nil {
-		log.Warnf("failed to write template metadata: %v", err)
-	}
+	writeMetadataFile(filepath.Join(paths.templateDir, "metadata.json"), metadata, "template metadata")
 
 	return nil
 }
