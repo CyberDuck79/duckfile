@@ -1,0 +1,24 @@
+<aside class="sidebar">
+  <nav class="docs-nav">
+    {%- for nav_item in site.navigation -%}
+      <div class="nav-section">
+        <a href="{{ nav_item.url | relative_url }}" 
+           {%- if page.url == nav_item.url %} class="active"{%- endif -%}>
+          {{ nav_item.title }}
+        </a>
+        {%- if nav_item.children -%}
+          <ul>
+            {%- for child in nav_item.children -%}
+              <li>
+                <a href="{{ child.url | relative_url }}"
+                   {%- if page.url == child.url %} class="active"{%- endif -%}>
+                  {{ child.title }}
+                </a>
+              </li>
+            {%- endfor -%}
+          </ul>
+        {%- endif -%}
+      </div>
+    {%- endfor -%}
+  </nav>
+</aside>

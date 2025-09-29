@@ -11,5 +11,9 @@
       ".duck.yaml",
       ".duck.yml"
     ]
+  },
+  "sonarlint.connectedMode.project": {
+    "connectionId": "cyberduck79",
+    "projectKey": "CyberDuck79_duckfile"
   }
 }

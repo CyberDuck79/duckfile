@@ -1,0 +1,158 @@
+# Site settings
+title: "Duckfile Documentation"
+email: contact@duckfile.dev
+description: >- # this means to ignore newlines until "baseurl:"
+  Duckfile is a powerful configuration management tool that provides secure, 
+  templated configurations with Git-based workflows and enterprise security features.
+  
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "https://cyberduck79.github.io/duckfile" # the base hostname & protocol for your site
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Navigation structure
+navigation:
+  - title: "Getting Started"
+    url: /docs/getting-started/
+    children:
+      - title: "Installation"
+        url: /docs/getting-started/installation/
+      - title: "Your First Configuration"
+        url: /docs/getting-started/first-config/
+  - title: "Core Concepts"
+    url: /docs/core-concepts/
+    children:
+      - title: "Understanding Targets"
+        url: /docs/core-concepts/targets/
+      - title: "Template System"
+        url: /docs/core-concepts/templates/
+  - title: "Interactive Setup"
+    url: /docs/interactive-setup/
+    children:
+      - title: "Using duck init"
+        url: /docs/interactive-setup/duck-init/
+      - title: "Using duck add"
+        url: /docs/interactive-setup/duck-add/
+  - title: "Variables"
+    url: /docs/variables/
+    children:
+      - title: "Variable Types"
+        url: /docs/variables/types/
+      - title: "Environment Files"
+        url: /docs/variables/environment/
+  - title: "Templates"
+    url: /docs/templates/
+    children:
+      - title: "Advanced Options"
+        url: /docs/templates/advanced/
+      - title: "Remote Configuration"
+        url: /docs/templates/remote/
+  - title: "Binary Integration"
+    url: /docs/binary-integration/
+    children:
+      - title: "Execution Patterns"
+        url: /docs/binary-integration/execution/
+      - title: "File Management"
+        url: /docs/binary-integration/files/
+  - title: "Advanced Features"
+    url: /docs/advanced/
+    children:
+      - title: "Git Integration"
+        url: /docs/advanced/git/
+      - title: "Caching & Performance"
+        url: /docs/advanced/caching/
+  - title: "CLI Reference"
+    url: /docs/cli/
+    children:
+      - title: "Commands"
+        url: /docs/cli/commands/
+      - title: "Flags & Environment"
+        url: /docs/cli/flags/
+  - title: "Security"
+    url: /docs/security/
+    children:
+      - title: "Security Fundamentals"
+        url: /docs/security/fundamentals/
+      - title: "Digital Signatures"
+        url: /docs/security/signatures/
+      - title: "Security Management"
+        url: /docs/security/management/
+      - title: "File Permissions"
+        url: /docs/security/permissions/
+  - title: "Integration"
+    url: /docs/integration/
+    children:
+      - title: "CI/CD Integration"
+        url: /docs/integration/cicd/
+      - title: "Multi-Tool Workflows"
+        url: /docs/integration/workflows/
+  - title: "Troubleshooting"
+    url: /docs/troubleshooting/
+  - title: "Reference"
+    url: /docs/reference/
+    children:
+      - title: "Configuration Schema"
+        url: /docs/reference/schema/
+      - title: "CLI Reference"
+        url: /docs/reference/cli/
+
+# Kramdown settings
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: true
+
+# Sass settings
+sass:
+  sass_dir: _sass
+  style: compressed
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - go.mod
+  - go.sum
+  - "*.go"
+  - cmd/
+  - internal/
+  - examples/
+  - .github/
+  - LICENSE
+
+# Include files
+include:
+  - _pages
+
+# Custom variables
+brand_color: "#08363E"
+logo_path: "/assets/logo.svg"
+logo_text_path: "/assets/logo_text.svg"
+
+# GitHub repository
+repository: CyberDuck79/duckfile
+
+# GitHub Pages specific settings
+github: [metadata]
