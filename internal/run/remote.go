@@ -108,6 +108,38 @@ func decideTemplateFetch(force, needRemote bool, resolved config.ResolvedTemplat
 
 // decideRemoteFetchResolved determines whether the remote repository needs to be fetched
 // based on the resolved template configuration
+// handleCommitHashValidation handles validation and auto-update logic for resolved templates
+func handleCommitHashValidation(resolved config.ResolvedTemplate, autoUpdateOnChangeFlag *bool, paths *templatePaths) (bool, error) {
+	log.Infof("🔍 checking remote updates: %s@%s", resolved.Repo, resolved.Ref)
+	valid, err := validateCachedCommitHash(resolved.Repo, resolved.Ref, paths.remoteDir)
+	if err != nil {
+		return false, fmt.Errorf("commit hash validation failed: %w", err)
+	}
+
+	if valid {
+		return false, nil // No update needed
+	}
+
+	// Template has changed - determine auto-update behavior
+	autoUpdate := resolved.AutoUpdateOnChange
+	if autoUpdateOnChangeFlag != nil {
+		autoUpdate = *autoUpdateOnChangeFlag
+	}
+
+	if autoUpdate {
+		log.Infof("📦 updating remote cache (commit changed)")
+		if err := invalidateCache(paths.remoteDir); err != nil {
+			return false, err
+		}
+		return true, nil // Need to fetch
+	}
+
+	// Auto-update disabled - return informative error
+	storedHash, _ := readCommitHashMetadata(paths.remoteDir)
+	remoteHash, _ := getRemoteCommitFunc(resolved.Repo, resolved.Ref)
+	return false, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\nTemplate: %s@%s\nCached commit:  %s\nRemote commit:  %s\n\nEnable autoUpdateOnChange or re-run with --force", resolved.Repo, resolved.Ref, truncateHash(storedHash), truncateHash(remoteHash))
+}
+
 func decideRemoteFetchResolved(force, trackCommitHash bool, resolved config.ResolvedTemplate, cfg *config.DuckConf, autoUpdateOnChangeFlag *bool, paths *templatePaths) (bool, error) {
 	needRemote := force
 
@@ -117,32 +149,17 @@ func decideRemoteFetchResolved(force, trackCommitHash bool, resolved config.Reso
 		needRemote = true
 	}
 
-	if !needRemote && trackCommitHash { // commit hash validation path
-		log.Infof("🔍 checking remote updates: %s@%s", resolved.Repo, resolved.Ref)
-		valid, err := validateCachedCommitHash(resolved.Repo, resolved.Ref, paths.remoteDir)
+	// Handle commit hash validation if enabled and cache exists
+	if !needRemote && trackCommitHash {
+		fetchNeeded, err := handleCommitHashValidation(resolved, autoUpdateOnChangeFlag, paths)
 		if err != nil {
-			return false, fmt.Errorf("commit hash validation failed: %w", err)
+			return false, err
 		}
-		if !valid {
-			// Use resolved template for auto-update decision
-			autoUpdate := resolved.AutoUpdateOnChange
-			if autoUpdateOnChangeFlag != nil {
-				autoUpdate = *autoUpdateOnChangeFlag
-			}
-
-			if autoUpdate {
-				log.Infof("📦 updating remote cache (commit changed)")
-				if err := invalidateCache(paths.remoteDir); err != nil {
-					return false, err
-				}
-				needRemote = true
-			} else {
-				storedHash, _ := readCommitHashMetadata(paths.remoteDir)
-				remoteHash, _ := getRemoteCommitFunc(resolved.Repo, resolved.Ref)
-				return false, fmt.Errorf("template has been updated remotely, but automatic updates are disabled.\n\nTemplate: %s@%s\nCached commit:  %s\nRemote commit:  %s\n\nEnable autoUpdateOnChange or re-run with --force", resolved.Repo, resolved.Ref, truncateHash(storedHash), truncateHash(remoteHash))
-			}
+		if fetchNeeded {
+			needRemote = true
 		}
 	}
+
 	return needRemote, nil
 }
 
