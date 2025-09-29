@@ -252,9 +252,9 @@ func FormatPolicyViolations(result *PolicyEnforcementResult) string {
 func formatViolationSection(output *strings.Builder, title string, items []PolicyViolation) {
 	output.WriteString(title + "\n")
 	for i, item := range items {
-		output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, item.Message))
+		fmt.Fprintf(output, "  %d. %s\n", i+1, item.Message)
 		if item.Suggestion != "" {
-			output.WriteString(fmt.Sprintf("     Suggestion: %s\n", item.Suggestion))
+			fmt.Fprintf(output, "     Suggestion: %s\n", item.Suggestion)
 		}
 	}
 }
