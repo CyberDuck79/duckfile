@@ -67,7 +67,7 @@ func EnforceSecurityPolicies(targetName string, target *Target, securityCfg *Sec
 
 	// 1. Checksum Validation Enforcement
 	if enforcement.ForceChecksumValidation {
-		if err := enforceChecksumValidation(targetName, target, result); err != nil {
+		if err := enforceChecksumValidation(targetName, target); err != nil {
 			result.AddViolation("checksum_validation", err.Error(), targetName,
 				"Add a checksum field to the template configuration")
 		}
@@ -75,7 +75,7 @@ func EnforceSecurityPolicies(targetName string, target *Target, securityCfg *Sec
 
 	// 2. Commit Tracking Enforcement
 	if enforcement.ForceCommitTracking {
-		if err := enforceCommitTracking(targetName, target, result); err != nil {
+		if err := enforceCommitTracking(targetName, target); err != nil {
 			result.AddViolation("commit_tracking", err.Error(), targetName,
 				"Set trackCommitHash: true in the template configuration")
 		}
@@ -83,7 +83,7 @@ func EnforceSecurityPolicies(targetName string, target *Target, securityCfg *Sec
 
 	// 3. Auto-Update Controls
 	if enforcement.DisableAutoUpdate {
-		if err := enforceAutoUpdateDisabled(targetName, target, result); err != nil {
+		if err := enforceAutoUpdateDisabled(targetName, target); err != nil {
 			result.AddWarning("auto_update_override", err.Error(), targetName,
 				"This setting is being overridden by security policy")
 		}
@@ -105,7 +105,7 @@ func EnforceSecurityPolicies(targetName string, target *Target, securityCfg *Sec
 }
 
 // enforceChecksumValidation checks if checksum is required and present
-func enforceChecksumValidation(targetName string, target *Target, result *PolicyEnforcementResult) error {
+func enforceChecksumValidation(targetName string, target *Target) error {
 	if strings.TrimSpace(target.Template.Checksum) == "" {
 		return fmt.Errorf("security policy requires checksum validation but no checksum provided for target %q", targetName)
 	}
@@ -113,7 +113,7 @@ func enforceChecksumValidation(targetName string, target *Target, result *Policy
 }
 
 // enforceCommitTracking checks if commit tracking is required and enabled
-func enforceCommitTracking(targetName string, target *Target, result *PolicyEnforcementResult) error {
+func enforceCommitTracking(targetName string, target *Target) error {
 	if !target.Template.TrackCommitHash {
 		return fmt.Errorf("security policy requires commit tracking but trackCommitHash is disabled for target %q", targetName)
 	}
@@ -121,7 +121,7 @@ func enforceCommitTracking(targetName string, target *Target, result *PolicyEnfo
 }
 
 // enforceAutoUpdateDisabled checks and warns about auto-update overrides
-func enforceAutoUpdateDisabled(targetName string, target *Target, result *PolicyEnforcementResult) error {
+func enforceAutoUpdateDisabled(targetName string, target *Target) error {
 	if target.Template.AutoUpdateOnChange {
 		return fmt.Errorf("security policy disables auto-updates but autoUpdateOnChange is enabled for target %q", targetName)
 	}
@@ -234,13 +234,7 @@ func FormatPolicyViolations(result *PolicyEnforcementResult) string {
 
 	// Format violations (errors)
 	if len(result.Violations) > 0 {
-		output.WriteString("Security Policy Violations:\n")
-		for i, violation := range result.Violations {
-			output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, violation.Message))
-			if violation.Suggestion != "" {
-				output.WriteString(fmt.Sprintf("     Suggestion: %s\n", violation.Suggestion))
-			}
-		}
+		formatViolationSection(&output, "Security Policy Violations:", result.Violations)
 	}
 
 	// Format warnings
@@ -248,16 +242,21 @@ func FormatPolicyViolations(result *PolicyEnforcementResult) string {
 		if len(result.Violations) > 0 {
 			output.WriteString("\n")
 		}
-		output.WriteString("Security Policy Warnings:\n")
-		for i, warning := range result.Warnings {
-			output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, warning.Message))
-			if warning.Suggestion != "" {
-				output.WriteString(fmt.Sprintf("     Suggestion: %s\n", warning.Suggestion))
-			}
-		}
+		formatViolationSection(&output, "Security Policy Warnings:", result.Warnings)
 	}
 
 	return output.String()
+}
+
+// formatViolationSection formats a section of policy violations/warnings
+func formatViolationSection(output *strings.Builder, title string, items []PolicyViolation) {
+	output.WriteString(title + "\n")
+	for i, item := range items {
+		output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, item.Message))
+		if item.Suggestion != "" {
+			output.WriteString(fmt.Sprintf("     Suggestion: %s\n", item.Suggestion))
+		}
+	}
 }
 
 // GetPolicyEnforcementSummary provides a summary of active policy enforcement

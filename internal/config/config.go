@@ -118,9 +118,6 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 	// Otherwise, treat as literal and parse basic YAML scalar types
 	v.Kind = VarLiteral
 	switch node.Tag {
-	case "!!str", "":
-		v.Value = node.Value
-		return nil
 	case "!!int":
 		i, err := strconv.ParseInt(node.Value, 10, 64)
 		if err != nil {
@@ -146,7 +143,7 @@ func (v *VarValue) UnmarshalYAML(node *yaml.Node) error {
 		}
 		return nil
 	default:
-		// Fallback: store as string
+		// Handle !!str, empty tag, and any other tag as string
 		v.Value = node.Value
 		return nil
 	}

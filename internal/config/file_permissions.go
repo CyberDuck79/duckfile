@@ -18,48 +18,76 @@ func DetermineSecurityFileType(filePath string) SecurityFileType {
 	}
 
 	// Check for system paths
+	if isSystemPathType(absPath) {
+		return SecurityFileTypeSystem
+	}
+
+	// Check for user home directory and project indicators
+	return determineUserOrProjectType(absPath)
+}
+
+// isSystemPathType checks if the path is in system directories
+func isSystemPathType(absPath string) bool {
 	systemPrefixes := []string{"/etc", "/usr", "/var", "/opt", "/System"}
 	for _, prefix := range systemPrefixes {
 		if strings.HasPrefix(absPath, prefix) {
-			return SecurityFileTypeSystem
+			return true
 		}
 	}
+	return false
+}
 
-	// Check for user home directory
+// determineUserOrProjectType determines if a path is user config or project config
+func determineUserOrProjectType(absPath string) SecurityFileType {
 	homeDir, err := os.UserHomeDir()
-	if err == nil && strings.HasPrefix(absPath, homeDir) {
-		// Check if it's in a project subdirectory within home
-		// Look for common project indicators
-		projectIndicators := []string{
-			"/.git/", "/node_modules/", "/.vscode/",
-			"/src/", "/pkg/", "/cmd/", "/internal/",
-		}
-
-		for _, indicator := range projectIndicators {
-			if strings.Contains(absPath, indicator) {
-				return SecurityFileTypeProject
-			}
-		}
-
-		// Check for typical project files
-		dir := filepath.Dir(absPath)
-		projectFiles := []string{
-			"go.mod", "package.json", "Cargo.toml",
-			"requirements.txt", "Makefile", "duck.yaml",
-		}
-
-		for _, projectFile := range projectFiles {
-			if _, err := os.Stat(filepath.Join(dir, projectFile)); err == nil {
-				return SecurityFileTypeProject
-			}
-		}
-
-		// If in home directory but no project indicators, it's a user config
-		return SecurityFileTypeUser
+	if err != nil || !strings.HasPrefix(absPath, homeDir) {
+		// Not in home directory, default to project type
+		return SecurityFileTypeProject
 	}
 
-	// Default to project type for any other paths
-	return SecurityFileTypeProject
+	// Check if it's in a project subdirectory within home
+	if hasProjectIndicators(absPath) {
+		return SecurityFileTypeProject
+	}
+
+	// Check for typical project files in the same directory
+	if hasProjectFiles(absPath) {
+		return SecurityFileTypeProject
+	}
+
+	// If in home directory but no project indicators, it's a user config
+	return SecurityFileTypeUser
+}
+
+// hasProjectIndicators checks for common project directory indicators
+func hasProjectIndicators(absPath string) bool {
+	projectIndicators := []string{
+		"/.git/", "/node_modules/", "/.vscode/",
+		"/src/", "/pkg/", "/cmd/", "/internal/",
+	}
+
+	for _, indicator := range projectIndicators {
+		if strings.Contains(absPath, indicator) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasProjectFiles checks for typical project files in the directory
+func hasProjectFiles(absPath string) bool {
+	dir := filepath.Dir(absPath)
+	projectFiles := []string{
+		"go.mod", "package.json", "Cargo.toml",
+		"requirements.txt", "Makefile", "duck.yaml",
+	}
+
+	for _, projectFile := range projectFiles {
+		if _, err := os.Stat(filepath.Join(dir, projectFile)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // FilePermissionResult holds the result of file permission validation
@@ -101,52 +129,78 @@ func ValidateFilePermissions(configFile *SecurityConfigFile, policy *FilePermiss
 		return result, nil
 	}
 
-	// Get file info
+	// Get file info and validate
+	if err := validateFileInfo(configFile, policy, result); err != nil {
+		return result, err
+	}
+
+	// Validate parent directories
+	validateParentDirectorySecurity(configFile.Path, policy, result)
+
+	// Set overall validation status
+	result.Valid = len(result.Issues) == 0 && (result.ParentDirSecure || !policy.RequireSecureDirectories)
+
+	return result, nil
+}
+
+// validateFileInfo validates file information including permissions and ownership
+func validateFileInfo(configFile *SecurityConfigFile, policy *FilePermissionPolicy, result *FilePermissionResult) error {
 	fileInfo, err := os.Stat(configFile.Path)
 	if err != nil {
 		result.Issues = append(result.Issues, fmt.Sprintf("failed to stat file: %v", err))
-		return result, nil
+		return nil
 	}
 
 	result.Permissions = fileInfo.Mode()
 
-	// Get owner and group information (Unix-like systems only)
-	if runtime.GOOS != "windows" {
-		if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
-			result.Owner = fmt.Sprintf("uid:%d", stat.Uid)
-			result.Group = fmt.Sprintf("gid:%d", stat.Gid)
-
-			// Validate ownership based on file type and policy
-			if policy.EnforceOwnership {
-				if err := validateOwnership(configFile.Type, stat, result); err != nil {
-					result.Issues = append(result.Issues, err.Error())
-				}
-			}
-		}
-	}
+	// Validate ownership on Unix-like systems
+	validateFileOwnership(configFile, policy, result, fileInfo)
 
 	// Validate file permissions
 	if err := validateFileMode(fileInfo.Mode(), policy, result); err != nil {
 		result.Issues = append(result.Issues, err.Error())
 	}
 
-	// Validate parent directory security if required
-	if policy.RequireSecureDirectories {
-		parentResult, err := validateParentDirectories(configFile.Path, policy)
-		if err != nil {
-			result.ParentDirIssues = append(result.ParentDirIssues, fmt.Sprintf("failed to validate parent directories: %v", err))
-		} else {
-			result.ParentDirSecure = parentResult.Secure
-			result.ParentDirIssues = parentResult.Issues
-		}
-	} else {
-		result.ParentDirSecure = true // Not required, so considered secure
+	return nil
+}
+
+// validateFileOwnership validates file ownership based on system type
+func validateFileOwnership(configFile *SecurityConfigFile, policy *FilePermissionPolicy, result *FilePermissionResult, fileInfo os.FileInfo) {
+	if runtime.GOOS == "windows" {
+		return
 	}
 
-	// Overall validation status
-	result.Valid = len(result.Issues) == 0 && (result.ParentDirSecure || !policy.RequireSecureDirectories)
+	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return
+	}
 
-	return result, nil
+	result.Owner = fmt.Sprintf("uid:%d", stat.Uid)
+	result.Group = fmt.Sprintf("gid:%d", stat.Gid)
+
+	// Validate ownership based on file type and policy
+	if policy.EnforceOwnership {
+		if err := validateOwnership(configFile.Type, stat, result); err != nil {
+			result.Issues = append(result.Issues, err.Error())
+		}
+	}
+}
+
+// validateParentDirectorySecurity validates parent directory security if required
+func validateParentDirectorySecurity(filePath string, policy *FilePermissionPolicy, result *FilePermissionResult) {
+	if !policy.RequireSecureDirectories {
+		result.ParentDirSecure = true // Not required, so considered secure
+		return
+	}
+
+	parentResult, err := validateParentDirectories(filePath, policy)
+	if err != nil {
+		result.ParentDirIssues = append(result.ParentDirIssues, fmt.Sprintf("failed to validate parent directories: %v", err))
+		return
+	}
+
+	result.ParentDirSecure = parentResult.Secure
+	result.ParentDirIssues = parentResult.Issues
 }
 
 // validateOwnership checks file ownership based on file type and policy
@@ -244,7 +298,7 @@ func validateParentDirectories(filePath string, policy *FilePermissionPolicy) (*
 			continue
 		}
 
-		if err := validateSingleDirectory(dir, policy, result); err != nil {
+		if err := validateSingleDirectory(dir, policy); err != nil {
 			result.Issues = append(result.Issues, fmt.Sprintf("directory %s: %v", dir, err))
 			result.Secure = false
 		}
@@ -285,7 +339,7 @@ func shouldSkipDirectoryValidation(dirPath string) bool {
 }
 
 // validateSingleDirectory validates a single directory's permissions
-func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, result *ParentDirectoryResult) error {
+func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy) error {
 	dirInfo, err := os.Stat(dirPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat directory: %w", err)
@@ -295,7 +349,18 @@ func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, resul
 		return fmt.Errorf("path is not a directory")
 	}
 
-	perm := dirInfo.Mode() & os.ModePerm
+	// Validate directory permissions
+	if err := validateDirectoryPermissions(dirInfo.Mode(), policy); err != nil {
+		return err
+	}
+
+	// Validate directory ownership on Unix-like systems
+	return validateDirectoryOwnership(dirPath, dirInfo)
+}
+
+// validateDirectoryPermissions validates directory permission bits
+func validateDirectoryPermissions(mode os.FileMode, policy *FilePermissionPolicy) error {
+	perm := mode & os.ModePerm
 
 	// Directory should not be writable by others
 	if perm&0002 != 0 {
@@ -307,21 +372,30 @@ func validateSingleDirectory(dirPath string, policy *FilePermissionPolicy, resul
 		return fmt.Errorf("directory writable by group but group write not allowed (mode: %o)", perm)
 	}
 
-	// On Unix-like systems, check ownership
-	if runtime.GOOS != "windows" {
-		if stat, ok := dirInfo.Sys().(*syscall.Stat_t); ok {
-			currentUID := uint32(os.Getuid())
+	return nil
+}
 
-			// For system paths, require root ownership
-			if isSystemPath(dirPath) && stat.Uid != 0 {
-				return fmt.Errorf("system directory should be owned by root, but owned by uid %d", stat.Uid)
-			}
+// validateDirectoryOwnership validates directory ownership on Unix-like systems
+func validateDirectoryOwnership(dirPath string, dirInfo os.FileInfo) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 
-			// For user paths, require current user ownership
-			if isUserPath(dirPath) && stat.Uid != currentUID {
-				return fmt.Errorf("user directory should be owned by current user (uid %d), but owned by uid %d", currentUID, stat.Uid)
-			}
-		}
+	stat, ok := dirInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+
+	currentUID := uint32(os.Getuid())
+
+	// For system paths, require root ownership
+	if isSystemPath(dirPath) && stat.Uid != 0 {
+		return fmt.Errorf("system directory should be owned by root, but owned by uid %d", stat.Uid)
+	}
+
+	// For user paths, require current user ownership
+	if isUserPath(dirPath) && stat.Uid != currentUID {
+		return fmt.Errorf("user directory should be owned by current user (uid %d), but owned by uid %d", currentUID, stat.Uid)
 	}
 
 	return nil
@@ -401,37 +475,7 @@ func FixFilePermissions(result *FilePermissionResult, policy *FilePermissionPoli
 	}
 
 	// Determine target permissions based on file type and policy
-	var targetMode os.FileMode
-	switch result.Type {
-	case SecurityFileTypeSystem:
-		if policy.EnforceReadOnly {
-			targetMode = 0644 // rw-r--r--
-		} else {
-			targetMode = 0644 // rw-r--r--
-		}
-
-	case SecurityFileTypeUser:
-		if policy.EnforceReadOnly {
-			if policy.AllowGroupWrite {
-				targetMode = 0664 // rw-rw-r--
-			} else {
-				targetMode = 0644 // rw-r--r--
-			}
-		} else {
-			if policy.AllowGroupWrite {
-				targetMode = 0664 // rw-rw-r--
-			} else {
-				targetMode = 0644 // rw-r--r--
-			}
-		}
-
-	case SecurityFileTypeProject:
-		if policy.AllowGroupWrite {
-			targetMode = 0664 // rw-rw-r--
-		} else {
-			targetMode = 0644 // rw-r--r--
-		}
-	}
+	targetMode := calculateTargetMode(result.Type, policy)
 
 	// Apply the permission fix
 	if err := os.Chmod(result.Path, targetMode); err != nil {
@@ -440,4 +484,23 @@ func FixFilePermissions(result *FilePermissionResult, policy *FilePermissionPoli
 
 	fmt.Printf("Fixed permissions for %s (mode: %o)\n", result.Path, targetMode)
 	return nil
+}
+
+// calculateTargetMode determines the appropriate file permissions based on file type and policy
+func calculateTargetMode(fileType SecurityFileType, policy *FilePermissionPolicy) os.FileMode {
+	switch fileType {
+	case SecurityFileTypeSystem:
+		// System files are always rw-r--r-- regardless of EnforceReadOnly
+		return 0644
+
+	case SecurityFileTypeUser, SecurityFileTypeProject:
+		// User and project files follow the same permission logic
+		if policy.AllowGroupWrite {
+			return 0664 // rw-rw-r--
+		}
+		return 0644 // rw-r--r--
+
+	default:
+		return 0644 // Default to rw-r--r--
+	}
 }
