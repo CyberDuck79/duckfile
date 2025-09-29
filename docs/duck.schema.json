@@ -10,6 +10,10 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/target" }
     },
+    "remotes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/remote" }
+    },
     "settings": {
       "type": "object",
       "properties": {
@@ -70,18 +74,17 @@
           }
         },
         {
-          "if": { "properties": { "copyRendered": { "const": true } } },
+          "if": { "required": ["renderedPath"], "properties": { "copyRendered": { "const": true } } },
           "then": { "required": ["renderedPath"] }
         }
       ]
     },
-    "template": {
+    "remote": {
       "type": "object",
-      "required": ["repo", "path"],
+      "required": ["repo"],
       "properties": {
         "repo": { "type": "string" },
         "ref": { "type": "string" },
-        "path": { "type": "string" },
         "delims": {
           "type": "object",
           "properties": {
@@ -92,7 +95,6 @@
         },
         "allowMissing": { "type": "boolean" },
         "submodules": { "type": "boolean" },
-        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
         "trackCommitHash": { "type": "boolean" },
         "autoUpdateOnChange": { "type": "boolean" }
       },
@@ -111,6 +113,66 @@
         {
           "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
           "then": { "properties": { "trackCommitHash": { "const": true } } }
+        }
+      ]
+    },
+    "template": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "remote": { "type": "string", "description": "Reference to a remote configuration defined in the remotes section" },
+        "repo": { "type": "string" },
+        "ref": { "type": "string" },
+        "path": { "type": "string" },
+        "delims": {
+          "type": "object",
+          "properties": {
+            "left": { "type": "string" },
+            "right": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "allowMissing": { "type": "boolean" },
+        "submodules": { "type": "boolean" },
+        "checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+        "trackCommitHash": { "type": "boolean" },
+        "autoUpdateOnChange": { "type": "boolean" }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "description": "Remote reference mode - uses a remote configuration",
+          "required": ["remote", "path"],
+          "not": {
+            "anyOf": [
+              { "required": ["repo"] },
+              { "required": ["ref"] },
+              { "required": ["submodules"] },
+              { "required": ["trackCommitHash"] },
+              { "required": ["autoUpdateOnChange"] }
+            ]
+          }
+        },
+        {
+          "description": "Inline mode - defines repository directly",
+          "required": ["repo", "path"],
+          "not": { "required": ["remote"] },
+          "allOf": [
+            {
+              "if": { "properties": { "trackCommitHash": { "const": true } } },
+              "then": { 
+                "not": { 
+                  "properties": { 
+                    "ref": { "pattern": "^[A-Fa-f0-9]{40}$" } 
+                  } 
+                } 
+              }
+            },
+            {
+              "if": { "properties": { "autoUpdateOnChange": { "const": true } } },
+              "then": { "properties": { "trackCommitHash": { "const": true } } }
+            }
+          ]
         }
       ]
     }

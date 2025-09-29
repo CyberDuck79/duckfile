@@ -63,13 +63,21 @@ EXAMPLES
 				}
 				fmt.Printf("%-12s %-12s %-s\n", label, bin, t.Description)
 				if listShowRemote {
-					fmt.Printf("    repo: %s\n", t.Template.Repo)
-					ref := t.Template.Ref
-					if ref == "" {
-						ref = "HEAD"
+					// Resolve template configuration to handle remote references
+					resolved, err := config.ResolveTemplateConfig(t.Template, cfg.Remotes, cfg.Settings)
+					if err != nil {
+						fmt.Printf("    repo: <error resolving remote: %v>\n", err)
+						fmt.Printf("    ref: <error>\n")
+						fmt.Printf("    path: %s\n", t.Template.Path)
+					} else {
+						fmt.Printf("    repo: %s\n", resolved.Repo)
+						ref := resolved.Ref
+						if ref == "" {
+							ref = "HEAD"
+						}
+						fmt.Printf("    ref: %s\n", ref)
+						fmt.Printf("    path: %s\n", resolved.Path)
 					}
-					fmt.Printf("    ref: %s\n", ref)
-					fmt.Printf("    path: %s\n", t.Template.Path)
 				}
 				if listShowVars && len(t.Variables) > 0 {
 					keys := make([]string, 0, len(t.Variables))

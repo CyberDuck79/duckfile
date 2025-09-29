@@ -32,7 +32,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 	// stub runExec
 	called := false
@@ -72,7 +72,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 	oldWd, _ := os.Getwd()
 	os.Chdir(dir)
@@ -134,7 +134,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 	captured := []string{}
 	orig := runExec
@@ -171,7 +171,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: custom.tpl
+      path: custom.tpl
 `
 	if err := os.WriteFile(filepath.Join(dir, "custom.yaml"), []byte(customConfig), 0o644); err != nil {
 		t.Fatal(err)
@@ -186,7 +186,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: env.tpl
+      path: env.tpl
 `
 	if err := os.WriteFile(filepath.Join(dir, "env.yaml"), []byte(envConfig), 0o644); err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: auto.tpl
+      path: auto.tpl
 `)
 
 	// Test cases for config precedence
@@ -357,14 +357,14 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: build.tpl
+      path: build.tpl
   test:
     name: test
     binary: echo
     fileFlag: -f
     template:
       repo: local
-    path: test.tpl
+      path: test.tpl
 `
 	if err := os.WriteFile(filepath.Join(dir, "custom.yaml"), []byte(customConfig), 0o644); err != nil {
 		t.Fatal(err)

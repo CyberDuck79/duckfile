@@ -499,7 +499,7 @@ cp -r "${DUCK_REPO_PATH}/assets" ./
 | `DUCK_REPO_PATH` | Path to cloned repository | `.duck/objects/remote/abc123` |
 | `DUCK_REPO_URL` | Repository URL | `https://github.com/org/templates.git` |
 | `DUCK_REPO_REF` | Git reference used | `main` |
-| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/remote/abc123/Makefile.tpl` |
+| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/template/ghi789/raw.tpl` |
 | `DUCK_RENDERED_PATH` | Rendered template file path | `.duck/objects/rendered/def456/Makefile` |
 | `DUCK_SYMLINK_PATH` | Symlink path (what user sees) | `.duck/build/Makefile` |
 | `DUCK_TARGET_NAME` | Target name being executed | `build` |

@@ -139,9 +139,11 @@ func TestChecksumValidation(t *testing.T) {
 		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
 		return dst, nil
 	}
-	// remove previous remote cache dir to ensure re-fetch
-	remoteKey, _ := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
+	// remove previous remote and template cache dirs to ensure re-fetch
+	remoteKey, _ := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref)
+	templateKey, _ := computeTemplateCacheKey(remoteKey, target.Template.Path)
 	os.RemoveAll(filepath.Join(".duck", "objects", "remote", remoteKey))
+	os.RemoveAll(filepath.Join(".duck", "objects", "template", templateKey))
 	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration(), nil, nil); err == nil {
 		t.Fatalf("expected checksum error, got nil")
 	}
@@ -152,6 +154,10 @@ func TestChecksumValidation(t *testing.T) {
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
 		return dst, nil
 	}
+
+	// Clear caches again to force fresh fetch with restored content
+	os.RemoveAll(filepath.Join(".duck", "objects", "remote", remoteKey))
+	os.RemoveAll(filepath.Join(".duck", "objects", "template", templateKey))
 
 	// recompute checksum
 	if err := Exec(cfg, "build", nil, defaultSecurityConfigIntegration(), nil, nil); err != nil {
@@ -231,8 +237,10 @@ func TestChecksumValidationSync(t *testing.T) {
 		os.WriteFile(filepath.Join(dst, "file.tpl"), tampered, 0o644)
 		return dst, nil
 	}
-	remoteKey, _ := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
+	remoteKey, _ := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref)
+	templateKey, _ := computeTemplateCacheKey(remoteKey, target.Template.Path)
 	os.RemoveAll(filepath.Join(".duck", "objects", "remote", remoteKey))
+	os.RemoveAll(filepath.Join(".duck", "objects", "template", templateKey))
 	if err := Sync(cfg, "build", false, defaultSecurityConfigIntegration(), nil, nil); err == nil {
 		t.Fatalf("expected checksum error in sync, got nil")
 	}
@@ -244,6 +252,10 @@ func TestChecksumValidationSync(t *testing.T) {
 		os.WriteFile(filepath.Join(dst, "file.tpl"), content, 0o644)
 		return dst, nil
 	}
+
+	// Clear caches again to force fresh fetch with restored content
+	os.RemoveAll(filepath.Join(".duck", "objects", "remote", remoteKey))
+	os.RemoveAll(filepath.Join(".duck", "objects", "template", templateKey))
 
 	// Should succeed again with correct checksum
 	if err := Sync(cfg, "build", false, defaultSecurityConfigIntegration(), nil, nil); err != nil {
@@ -344,7 +356,7 @@ func TestCommitHashTrackingIntegration(t *testing.T) {
 	}
 
 	// Verify metadata was stored
-	remoteKey, err := computeRemoteCacheKey(cfg.Targets["test"].Template.Repo, cfg.Targets["test"].Template.Ref, cfg.Targets["test"].Template.Path)
+	remoteKey, err := computeRemoteCacheKey(cfg.Targets["test"].Template.Repo, cfg.Targets["test"].Template.Ref)
 	if err != nil {
 		t.Fatalf("failed to compute remote cache key: %v", err)
 	}
@@ -436,7 +448,7 @@ func TestCommitHashTrackingWithAutoUpdate(t *testing.T) {
 	}
 
 	// Verify new metadata was stored
-	remoteKey, err := computeRemoteCacheKey(cfg.Targets["test"].Template.Repo, cfg.Targets["test"].Template.Ref, cfg.Targets["test"].Template.Path)
+	remoteKey, err := computeRemoteCacheKey(cfg.Targets["test"].Template.Repo, cfg.Targets["test"].Template.Ref)
 	if err != nil {
 		t.Fatalf("failed to compute remote cache key: %v", err)
 	}
@@ -670,7 +682,13 @@ func TestExecArgumentOrdering(t *testing.T) {
 	os.MkdirAll(repoDir, 0o755)
 	os.WriteFile(filepath.Join(repoDir, "f.tpl"), []byte("hi"), 0o644)
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+		dst := filepath.Join(cacheDir, "repo")
+		os.MkdirAll(dst, 0o755)
+		data, _ := os.ReadFile(filepath.Join(repoDir, "f.tpl"))
+		os.WriteFile(filepath.Join(dst, "f.tpl"), data, 0o644)
+		return dst, nil
+	}
 	defer func() { cloneFunc = origClone }()
 	// capture exec invocation by replacing binary with a script that records args
 	logFile := filepath.Join(tmp, "args.log")
@@ -722,7 +740,13 @@ func TestEnvironmentVariablesIntegration(t *testing.T) {
 
 	// Mock clone function
 	origClone := cloneFunc
-	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+	cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+		dst := filepath.Join(cacheDir, "repo")
+		os.MkdirAll(dst, 0o755)
+		data, _ := os.ReadFile(filepath.Join(repoDir, "test.tpl"))
+		os.WriteFile(filepath.Join(dst, "test.tpl"), data, 0o644)
+		return dst, nil
+	}
 	defer func() { cloneFunc = origClone }()
 
 	// Create script that outputs environment variables
@@ -802,8 +826,8 @@ test-script > ` + outputFile
 	}
 
 	// Also verify that the paths point to the cache directories (this is correct behavior)
-	if !strings.Contains(outputStr, "DUCK_TEMPLATE_PATH=.duck/objects/remote/") {
-		t.Errorf("Expected DUCK_TEMPLATE_PATH to start with .duck/objects/remote/, got: %s", outputStr)
+	if !strings.Contains(outputStr, "DUCK_TEMPLATE_PATH=.duck/objects/template/") {
+		t.Errorf("Expected DUCK_TEMPLATE_PATH to start with .duck/objects/template/, got: %s", outputStr)
 	}
 	if !strings.Contains(outputStr, "DUCK_REPO_PATH=.duck/objects/remote/") {
 		t.Errorf("Expected DUCK_REPO_PATH to start with .duck/objects/remote/, got: %s", outputStr)

@@ -91,7 +91,7 @@ func TestTrackCommitHashValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTarget(tt.target, tt.targetName)
+			err := validateTarget(tt.target, tt.targetName, nil)
 
 			if tt.expectErr {
 				if err == nil {

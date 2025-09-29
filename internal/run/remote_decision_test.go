@@ -3,6 +3,7 @@ package run
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
@@ -51,7 +52,13 @@ func TestDecideRemoteFetchMatrix(t *testing.T) {
 			t.Fatalf("%s: paths err: %v", c.name, err)
 		}
 		if c.remoteExists {
+			// Create remote cache directory with repository structure
 			os.MkdirAll(p.remoteDir, 0o755)
+			repoDir := filepath.Join(p.remoteDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			os.WriteFile(filepath.Join(repoDir, "f.tpl"), []byte("template content"), 0o644)
+			// Create template cache directory and extracted template
+			os.MkdirAll(p.templateDir, 0o755)
 			os.WriteFile(p.remoteTemplateFile, []byte("raw"), 0o644)
 			// commit hash metadata to enable validation branch when tracking
 			writeCommitHashMetadata(p.remoteDir, "hash1")

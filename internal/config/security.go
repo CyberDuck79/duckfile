@@ -231,6 +231,66 @@ func checkSecurityConfigFile(path string, fileType SecurityFileType) *SecurityCo
 
 // LoadSecurityConfigFromFile loads and parses a security configuration from a YAML file
 // with optional signature verification
+// loadSignatureData attempts to load signature data for a config file
+func loadSignatureData(configPath string) ([]byte, bool, error) {
+	sigPath := configPath + ".sig"
+	if _, err := os.Stat(sigPath); err != nil {
+		return nil, false, nil // No signature file
+	}
+
+	signature, err := LoadSignatureFromFile(sigPath)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to load signature for %s: %w", configPath, err)
+	}
+
+	return signature, true, nil
+}
+
+// verifyConfigSignature verifies the signature of a security config
+func verifyConfigSignature(configData []byte, signature []byte, config *SecurityConfig, path string) error {
+	if config.Signature == nil {
+		return fmt.Errorf("signature file exists but config has no signature metadata in %s", path)
+	}
+
+	// Load the public key for verification
+	publicKey, err := LoadPublicKey(config.Signature.KeyID)
+	if err != nil {
+		return fmt.Errorf("failed to load public key for verification of %s: %w", path, err)
+	}
+
+	// Verify the signature
+	if err := VerifySignature(configData, signature, publicKey); err != nil {
+		return fmt.Errorf("signature verification failed for %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// validateConfigFilePermissions validates file permissions if enforcement is enabled
+func validateConfigFilePermissions(config *SecurityConfig, path string) error {
+	if config.Enforcement == nil || !config.Enforcement.EnforceFilePermissions || config.FilePermissions == nil {
+		return nil // No validation needed
+	}
+
+	configFile := &SecurityConfigFile{
+		Path:   path,
+		Type:   DetermineSecurityFileType(path),
+		Exists: true,
+	}
+
+	permResult, err := ValidateFilePermissions(configFile, config.FilePermissions)
+	if err != nil {
+		return fmt.Errorf("failed to validate file permissions for %s: %w", path, err)
+	}
+
+	if !permResult.Valid {
+		issues := append(permResult.Issues, permResult.ParentDirIssues...)
+		return fmt.Errorf("file permission validation failed for %s: %v", path, issues)
+	}
+
+	return nil
+}
+
 func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 	// Read the configuration file
 	configData, err := os.ReadFile(path)
@@ -238,18 +298,10 @@ func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 		return nil, fmt.Errorf("failed to read security config file %s: %w", path, err)
 	}
 
-	// Check for signature file
-	sigPath := path + ".sig"
-	var signature []byte
-	var isSigned bool
-
-	if _, err := os.Stat(sigPath); err == nil {
-		// Signature file exists, load it
-		signature, err = LoadSignatureFromFile(sigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load signature for %s: %w", path, err)
-		}
-		isSigned = true
+	// Load signature data if available
+	signature, isSigned, err := loadSignatureData(path)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse the YAML configuration
@@ -258,56 +310,26 @@ func LoadSecurityConfigFromFile(path string) (*SecurityConfig, error) {
 		return nil, fmt.Errorf("failed to parse security config YAML from %s: %w", path, err)
 	}
 
-	// Set metadata from file loading
+	// Set basic metadata
 	config.SourceFile = path
 	config.IsSigned = isSigned
-
-	// If signed, verify the signature
-	if isSigned {
-		if config.Signature == nil {
-			return nil, fmt.Errorf("signature file exists but config has no signature metadata in %s", path)
-		}
-
-		// Load the public key for verification
-		publicKey, err := LoadPublicKey(config.Signature.KeyID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load public key for verification of %s: %w", path, err)
-		}
-
-		// Verify the signature
-		if err := VerifySignature(configData, signature, publicKey); err != nil {
-			return nil, fmt.Errorf("signature verification failed for %s: %w", path, err)
-		}
-
-		// Set source to indicate this is a verified signed config
-		config.Source = "signed"
-	} else {
-		// Unsigned config file
-		config.Source = "unsigned"
-	}
-
-	// Validate the configuration version
 	if config.Version == 0 {
 		config.Version = 1 // Default to version 1 if not specified
 	}
 
-	// Validate file permissions if policy enforcement is enabled
-	if config.Enforcement != nil && config.Enforcement.EnforceFilePermissions && config.FilePermissions != nil {
-		configFile := &SecurityConfigFile{
-			Path:   path,
-			Type:   DetermineSecurityFileType(path),
-			Exists: true,
+	// Handle signature verification
+	if isSigned {
+		if err := verifyConfigSignature(configData, signature, &config, path); err != nil {
+			return nil, err
 		}
+		config.Source = "signed"
+	} else {
+		config.Source = "unsigned"
+	}
 
-		permResult, err := ValidateFilePermissions(configFile, config.FilePermissions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to validate file permissions for %s: %w", path, err)
-		}
-
-		if !permResult.Valid {
-			issues := append(permResult.Issues, permResult.ParentDirIssues...)
-			return nil, fmt.Errorf("file permission validation failed for %s: %v", path, issues)
-		}
+	// Validate file permissions if required
+	if err := validateConfigFilePermissions(&config, path); err != nil {
+		return nil, err
 	}
 
 	return &config, nil
@@ -401,6 +423,71 @@ func BuildSecurityConfigWithFiles(cliAllowed []string, cliDenied []string, cliSt
 
 // MergeSecurityConfigs merges multiple security configurations with precedence rules
 // Higher precedence configs override lower precedence ones for specific fields
+// copyStringSlice creates a copy of a string slice
+func copyStringSlice(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
+}
+
+// createBaseConfig creates the initial merged config from the first configuration
+func createBaseConfig(baseConfig *SecurityConfig) *SecurityConfig {
+	return &SecurityConfig{
+		AllowedHosts:    copyStringSlice(baseConfig.AllowedHosts),
+		DeniedHosts:     copyStringSlice(baseConfig.DeniedHosts),
+		StrictMode:      baseConfig.StrictMode,
+		Source:          baseConfig.Source,
+		SourceFile:      baseConfig.SourceFile,
+		IsSigned:        baseConfig.IsSigned,
+		Signature:       baseConfig.Signature,
+		Enforcement:     baseConfig.Enforcement,
+		FilePermissions: baseConfig.FilePermissions,
+		Metadata:        baseConfig.Metadata,
+		Version:         baseConfig.Version,
+	}
+}
+
+// mergeConfigOverrides applies a config's overrides to the merged result
+func mergeConfigOverrides(merged *SecurityConfig, override *SecurityConfig) {
+	// Override host lists if provided
+	if len(override.AllowedHosts) > 0 {
+		merged.AllowedHosts = copyStringSlice(override.AllowedHosts)
+	}
+	if len(override.DeniedHosts) > 0 {
+		merged.DeniedHosts = copyStringSlice(override.DeniedHosts)
+	}
+
+	// Always override boolean and core fields
+	merged.StrictMode = override.StrictMode
+	merged.Source = override.Source
+
+	// Override optional fields if present
+	if override.SourceFile != "" {
+		merged.SourceFile = override.SourceFile
+	}
+	if override.IsSigned {
+		merged.IsSigned = override.IsSigned
+	}
+	if override.Signature != nil {
+		merged.Signature = override.Signature
+	}
+	if override.Enforcement != nil {
+		merged.Enforcement = override.Enforcement
+	}
+	if override.FilePermissions != nil {
+		merged.FilePermissions = override.FilePermissions
+	}
+	if override.Metadata != nil {
+		merged.Metadata = override.Metadata
+	}
+	if override.Version > 0 {
+		merged.Version = override.Version
+	}
+}
+
 func MergeSecurityConfigs(configs ...*SecurityConfig) *SecurityConfig {
 	if len(configs) == 0 {
 		return &SecurityConfig{
@@ -409,83 +496,27 @@ func MergeSecurityConfigs(configs ...*SecurityConfig) *SecurityConfig {
 		}
 	}
 
-	// Start with the first config as base
-	merged := &SecurityConfig{
-		AllowedHosts:    make([]string, len(configs[0].AllowedHosts)),
-		DeniedHosts:     make([]string, len(configs[0].DeniedHosts)),
-		StrictMode:      configs[0].StrictMode,
-		Source:          configs[0].Source,
-		SourceFile:      configs[0].SourceFile,
-		IsSigned:        configs[0].IsSigned,
-		Signature:       configs[0].Signature,
-		Enforcement:     configs[0].Enforcement,
-		FilePermissions: configs[0].FilePermissions,
-		Metadata:        configs[0].Metadata,
-		Version:         configs[0].Version,
-	}
-	copy(merged.AllowedHosts, configs[0].AllowedHosts)
-	copy(merged.DeniedHosts, configs[0].DeniedHosts)
+	// Create base configuration from first config
+	merged := createBaseConfig(configs[0])
 
 	// Apply subsequent configs with precedence rules
 	for i := 1; i < len(configs); i++ {
-		config := configs[i]
-
-		// Override host lists if provided
-		if len(config.AllowedHosts) > 0 {
-			merged.AllowedHosts = make([]string, len(config.AllowedHosts))
-			copy(merged.AllowedHosts, config.AllowedHosts)
-		}
-		if len(config.DeniedHosts) > 0 {
-			merged.DeniedHosts = make([]string, len(config.DeniedHosts))
-			copy(merged.DeniedHosts, config.DeniedHosts)
-		}
-
-		// Always override boolean fields
-		merged.StrictMode = config.StrictMode
-
-		// Update source to reflect highest precedence source
-		merged.Source = config.Source
-
-		// Override other fields if present
-		if config.SourceFile != "" {
-			merged.SourceFile = config.SourceFile
-		}
-		if config.IsSigned {
-			merged.IsSigned = config.IsSigned
-		}
-		if config.Signature != nil {
-			merged.Signature = config.Signature
-		}
-		if config.Enforcement != nil {
-			merged.Enforcement = config.Enforcement
-		}
-		if config.FilePermissions != nil {
-			merged.FilePermissions = config.FilePermissions
-		}
-		if config.Metadata != nil {
-			merged.Metadata = config.Metadata
-		}
-		if config.Version > 0 {
-			merged.Version = config.Version
-		}
+		mergeConfigOverrides(merged, configs[i])
 	}
 
 	return merged
 }
 
 // GetSecurityConfigPrecedenceInfo returns detailed information about the effective configuration precedence
-func GetSecurityConfigPrecedenceInfo(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfigPrecedenceInfo, error) {
-	info := &SecurityConfigPrecedenceInfo{
-		Sources: make(map[string]*SecurityConfig),
-	}
+// loadFileBasedConfigs discovers and loads file-based security configurations
+func loadFileBasedConfigs() (map[string]*SecurityConfig, error) {
+	sources := make(map[string]*SecurityConfig)
 
-	// Discover file-based configs
 	configFiles, err := DiscoverSecurityConfigs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover security config files: %w", err)
 	}
 
-	// Load signed configs
 	for _, configFile := range configFiles {
 		if !configFile.Exists || !configFile.Readable {
 			continue
@@ -497,53 +528,86 @@ func GetSecurityConfigPrecedenceInfo(cliAllowed []string, cliDenied []string, cl
 		}
 
 		if config.IsSigned {
-			info.Sources["signed"] = config
+			sources["signed"] = config
 			break // Use first signed config found
 		} else {
-			if info.Sources["unsigned"] == nil {
-				info.Sources["unsigned"] = config
+			if sources["unsigned"] == nil {
+				sources["unsigned"] = config
 			}
 		}
 	}
 
-	// Check CLI config
+	return sources, nil
+}
+
+// createCLIConfig creates a security config from CLI arguments if any are provided
+func createCLIConfig(cliAllowed []string, cliDenied []string, cliStrict bool) *SecurityConfig {
 	if len(cliAllowed) > 0 || len(cliDenied) > 0 || cliStrict {
-		cliConfig := &SecurityConfig{
+		return &SecurityConfig{
 			AllowedHosts: cliAllowed,
 			DeniedHosts:  cliDenied,
 			StrictMode:   cliStrict,
 			Source:       "cli",
 			Version:      1,
 		}
+	}
+	return nil
+}
+
+// determineEffectiveConfig applies precedence rules to determine the active config
+func determineEffectiveConfig(sources map[string]*SecurityConfig) (*SecurityConfig, string) {
+	// Apply precedence rules: signed > cli > env > unsigned > none
+	if sources["signed"] != nil {
+		return sources["signed"], "signed"
+	}
+	if sources["cli"] != nil {
+		return sources["cli"], "cli"
+	}
+	if sources["env"] != nil {
+		return sources["env"], "env"
+	}
+	if sources["unsigned"] != nil {
+		return sources["unsigned"], "unsigned"
+	}
+
+	// Default fallback
+	return &SecurityConfig{
+		Source:  "none",
+		Version: 1,
+	}, "none"
+}
+
+// GetSecurityConfigPrecedenceInfo retrieves security configuration precedence information
+// combining CLI arguments, environment variables, and file-based configurations
+func GetSecurityConfigPrecedenceInfo(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfigPrecedenceInfo, error) {
+	info := &SecurityConfigPrecedenceInfo{
+		Sources: make(map[string]*SecurityConfig),
+	}
+
+	// Load file-based configurations
+	fileSources, err := loadFileBasedConfigs()
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge file sources into info
+	for key, config := range fileSources {
+		info.Sources[key] = config
+	}
+
+	// Add CLI config if provided
+	if cliConfig := createCLIConfig(cliAllowed, cliDenied, cliStrict); cliConfig != nil {
 		info.Sources["cli"] = cliConfig
 	}
 
-	// Check environment config
+	// Add environment config if available
 	envConfig := LoadSecurityConfigFromEnv()
 	if envConfig.Source != "none" {
 		info.Sources["env"] = envConfig
 	}
 
-	// Determine effective config using natural precedence rules
-	if info.Sources["signed"] != nil {
-		info.EffectiveConfig = info.Sources["signed"]
-		info.EffectiveSource = "signed"
-	} else if info.Sources["cli"] != nil {
-		info.EffectiveConfig = info.Sources["cli"]
-		info.EffectiveSource = "cli"
-	} else if info.Sources["env"] != nil {
-		info.EffectiveConfig = info.Sources["env"]
-		info.EffectiveSource = "env"
-	} else if info.Sources["unsigned"] != nil {
-		info.EffectiveConfig = info.Sources["unsigned"]
-		info.EffectiveSource = "unsigned"
-	} else {
-		info.EffectiveConfig = &SecurityConfig{
-			Source:  "none",
-			Version: 1,
-		}
-		info.EffectiveSource = "none"
-	}
+	// Determine effective configuration
+	info.EffectiveConfig, info.EffectiveSource = determineEffectiveConfig(info.Sources)
 
 	return info, nil
 }
@@ -655,6 +719,53 @@ func ValidateRepoAccess(repoURL string, securityCfg *SecurityConfig) error {
 //   - SSH: git@github.com:user/repo.git
 //   - SSH with port: ssh://git@github.com:22/user/repo.git
 //   - For testing: simple hostnames like "stub", "local", etc. are returned as-is
+//
+// parseHTTPSURL extracts hostname from HTTPS/HTTP URLs
+func parseHTTPSURL(repoURL string) (string, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid HTTP(S) URL: %w", err)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("no host in HTTP(S) URL")
+	}
+	return u.Host, nil
+}
+
+// parseSSHURL extracts hostname from ssh:// URLs
+func parseSSHURL(repoURL string) (string, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid SSH URL: %w", err)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("no host in SSH URL")
+	}
+	return u.Host, nil
+}
+
+// parseSCPStyleURL extracts hostname from SCP-style SSH URLs (git@github.com:user/repo.git)
+func parseSCPStyleURL(repoURL string) (string, error) {
+	// Split on @ to get user and host:path parts
+	parts := strings.SplitN(repoURL, "@", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid SCP-style SSH URL format")
+	}
+
+	// Split host:path part on first colon
+	hostPart := strings.SplitN(parts[1], ":", 2)
+	if len(hostPart) != 2 {
+		return "", fmt.Errorf("invalid SCP-style SSH URL format: missing colon after host")
+	}
+
+	host := strings.TrimSpace(hostPart[0])
+	if host == "" {
+		return "", fmt.Errorf("empty hostname in SCP-style SSH URL")
+	}
+
+	return host, nil
+}
+
 func extractHostFromGitURL(repoURL string) (string, error) {
 	repoURL = strings.TrimSpace(repoURL)
 	if repoURL == "" {
@@ -669,48 +780,17 @@ func extractHostFromGitURL(repoURL string) (string, error) {
 
 	// Handle HTTPS/HTTP URLs
 	if strings.HasPrefix(repoURL, "https://") || strings.HasPrefix(repoURL, "http://") {
-		u, err := url.Parse(repoURL)
-		if err != nil {
-			return "", fmt.Errorf("invalid HTTP(S) URL: %w", err)
-		}
-		if u.Host == "" {
-			return "", fmt.Errorf("no host in HTTP(S) URL")
-		}
-		return u.Host, nil
+		return parseHTTPSURL(repoURL)
 	}
 
 	// Handle SSH URLs with ssh:// scheme
 	if strings.HasPrefix(repoURL, "ssh://") {
-		u, err := url.Parse(repoURL)
-		if err != nil {
-			return "", fmt.Errorf("invalid SSH URL: %w", err)
-		}
-		if u.Host == "" {
-			return "", fmt.Errorf("no host in SSH URL")
-		}
-		return u.Host, nil
+		return parseSSHURL(repoURL)
 	}
 
 	// Handle SCP-style SSH URLs: git@github.com:user/repo.git
 	if strings.Contains(repoURL, "@") && strings.Contains(repoURL, ":") {
-		// Split on @ to get user and host:path parts
-		parts := strings.SplitN(repoURL, "@", 2)
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid SCP-style SSH URL format")
-		}
-
-		// Split host:path part on first colon
-		hostPart := strings.SplitN(parts[1], ":", 2)
-		if len(hostPart) != 2 {
-			return "", fmt.Errorf("invalid SCP-style SSH URL format: missing colon after host")
-		}
-
-		host := strings.TrimSpace(hostPart[0])
-		if host == "" {
-			return "", fmt.Errorf("empty hostname in SCP-style SSH URL")
-		}
-
-		return host, nil
+		return parseSCPStyleURL(repoURL)
 	}
 
 	return "", fmt.Errorf("unsupported URL format: must be HTTPS, HTTP, ssh://, or SCP-style SSH")

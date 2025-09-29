@@ -18,9 +18,36 @@ type Delims struct {
 	Right string `yaml:"right"`
 }
 
+// Remote defines a shared remote repository configuration that can be referenced by multiple templates
+type Remote struct {
+	Repo               string `yaml:"repo"`
+	Ref                string `yaml:"ref,omitempty"`
+	Submodules         bool   `yaml:"submodules,omitempty"`
+	TrackCommitHash    bool   `yaml:"trackCommitHash,omitempty"`
+	AutoUpdateOnChange bool   `yaml:"autoUpdateOnChange,omitempty"`
+}
+
+// ResolvedTemplate contains the fully resolved template configuration,
+// combining remote settings with template-specific settings
+type ResolvedTemplate struct {
+	Repo               string
+	Ref                string
+	Path               string
+	Submodules         bool
+	TrackCommitHash    bool
+	AutoUpdateOnChange bool
+	Checksum           string
+	Delims             *Delims
+	AllowMissing       bool
+}
+
 type Template struct {
-	Repo     string `yaml:"repo"`
-	Ref      string `yaml:"ref"`
+	// Remote reference (new approach)
+	Remote string `yaml:"remote,omitempty"`
+
+	// Inline configuration (existing approach - mutually exclusive with Remote)
+	Repo     string `yaml:"repo,omitempty"`
+	Ref      string `yaml:"ref,omitempty"`
 	Path     string `yaml:"path"`
 	Checksum string `yaml:"checksum,omitempty"`
 
@@ -190,6 +217,7 @@ type DuckConf struct {
 	Version int `yaml:"version"`
 	// Default is the key of the target (in Targets) executed when the user omits a target.
 	Default  string            `yaml:"default"`
+	Remotes  map[string]Remote `yaml:"remotes,omitempty"`
 	Targets  map[string]Target `yaml:"targets"`
 	Settings *Settings         `yaml:"settings,omitempty"`
 }
@@ -278,9 +306,19 @@ func (c *DuckConf) Validate() error {
 		return err
 	}
 
+	// Validate remotes
+	if err := validateRemotes(c.Remotes); err != nil {
+		return err
+	}
+
+	// Validate remote references in targets
+	if err := validateRemoteReferences(c.Targets, c.Remotes); err != nil {
+		return err
+	}
+
 	// Validate each target
 	for name, t := range c.Targets {
-		if err := validateTarget(t, name); err != nil {
+		if err := validateTarget(t, name, c.Remotes); err != nil {
 			return err
 		}
 	}
@@ -318,7 +356,95 @@ func validateSettings(s *Settings) error {
 	return nil
 }
 
-func validateTarget(t Target, name string) error {
+func validateRemotes(remotes map[string]Remote) error {
+	if remotes == nil {
+		return nil
+	}
+
+	for name, remote := range remotes {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("remote name cannot be empty")
+		}
+
+		if strings.TrimSpace(remote.Repo) == "" {
+			return fmt.Errorf("remote %q: repo is required", name)
+		}
+
+		// Validate commit hash tracking configuration for remote
+		if remote.TrackCommitHash && remote.Ref != "" && git.IsCommitHash(remote.Ref) {
+			return fmt.Errorf("remote %q: commit hash tracking is invalid when ref is already a commit hash (%s).\n\n"+
+				"Commit hashes are immutable and don't change, so tracking them is unnecessary.\n\n"+
+				"To fix this issue, choose one of the following options:\n"+
+				"  • Change 'ref' to a branch name (e.g., 'main', 'develop') or tag name (e.g., 'v1.0.0')\n"+
+				"  • Set 'trackCommitHash: false' in your remote configuration\n"+
+				"  • Remove the 'trackCommitHash' setting to use the default (false)",
+				name, remote.Ref)
+		}
+
+		// If auto-update is enabled, commit hash tracking must also be enabled
+		if remote.AutoUpdateOnChange && !remote.TrackCommitHash {
+			return fmt.Errorf("remote %q: autoUpdateOnChange requires trackCommitHash to be enabled.\n\n"+
+				"To fix this issue, add 'trackCommitHash: true' to your remote configuration.\n\n"+
+				"Example configuration:\n"+
+				"  trackCommitHash: true\n"+
+				"  autoUpdateOnChange: true",
+				name)
+		}
+	}
+
+	return nil
+}
+
+func validateRemoteReferences(targets map[string]Target, remotes map[string]Remote) error {
+	for targetName, target := range targets {
+		if target.Template.Remote != "" {
+			if _, exists := remotes[target.Template.Remote]; !exists {
+				return fmt.Errorf("target %q: remote %q not found in remotes section", targetName, target.Template.Remote)
+			}
+		}
+	}
+	return nil
+}
+
+func validateTemplate(template Template, targetName string, remotes map[string]Remote) error {
+	if template.Remote != "" {
+		// Remote reference mode - no inline settings allowed
+		if template.Repo != "" || template.Ref != "" ||
+			template.Submodules || template.TrackCommitHash || template.AutoUpdateOnChange {
+			return fmt.Errorf("target %q: cannot specify remote settings when using remote reference %q",
+				targetName, template.Remote)
+		}
+
+		// Verify remote exists
+		if _, exists := remotes[template.Remote]; !exists {
+			return fmt.Errorf("target %q: remote %q not found", targetName, template.Remote)
+		}
+
+		// Path is required
+		if strings.TrimSpace(template.Path) == "" {
+			return fmt.Errorf("target %q: path is required", targetName)
+		}
+	} else {
+		// Inline mode - existing validation logic
+		if strings.TrimSpace(template.Repo) == "" {
+			return fmt.Errorf("target %q: repo is required when not using remote reference", targetName)
+		}
+
+		// Path is required
+		if strings.TrimSpace(template.Path) == "" {
+			return fmt.Errorf("target %q: path is required", targetName)
+		}
+
+		// Validate commit hash tracking for inline templates
+		if err := validateCommitHashTracking(template, targetName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateTarget(t Target, name string, remotes map[string]Remote) error {
 	hasBin := strings.TrimSpace(t.Binary) != ""
 	if !hasBin {
 		if strings.TrimSpace(t.FileFlag) != "" {
@@ -338,8 +464,58 @@ func validateTarget(t Target, name string) error {
 		return fmt.Errorf("target %q: renderedPath is required when copyRendered is true", name)
 	}
 
-	// Validate commit hash tracking configuration
-	return validateCommitHashTracking(t.Template, name)
+	// Validate template configuration
+	return validateTemplate(t.Template, name, remotes)
+}
+
+// ResolveTemplateConfig resolves a template configuration by merging remote settings
+// with template-specific settings and global settings fallback
+func ResolveTemplateConfig(template Template, remotes map[string]Remote, settings *Settings) (ResolvedTemplate, error) {
+	if template.Remote != "" {
+		// Use remote config entirely
+		remote, exists := remotes[template.Remote]
+		if !exists {
+			return ResolvedTemplate{}, fmt.Errorf("remote %q not found", template.Remote)
+		}
+
+		return ResolvedTemplate{
+			Repo:               remote.Repo,
+			Ref:                remote.Ref,
+			Path:               template.Path,
+			Submodules:         remote.Submodules,
+			TrackCommitHash:    remote.TrackCommitHash,
+			AutoUpdateOnChange: remote.AutoUpdateOnChange,
+			Checksum:           template.Checksum,
+			Delims:             template.Delims,
+			AllowMissing:       template.AllowMissing,
+		}, nil
+	}
+
+	// Use inline configuration with settings fallback
+	trackCommitHash := template.TrackCommitHash
+	autoUpdateOnChange := template.AutoUpdateOnChange
+
+	// Apply global settings if not set at template level
+	if settings != nil {
+		if !template.TrackCommitHash && settings.GetTrackCommitHash() {
+			trackCommitHash = true
+		}
+		if !template.AutoUpdateOnChange && settings.GetAutoUpdateOnChange() {
+			autoUpdateOnChange = true
+		}
+	}
+
+	return ResolvedTemplate{
+		Repo:               template.Repo,
+		Ref:                template.Ref,
+		Path:               template.Path,
+		Submodules:         template.Submodules,
+		TrackCommitHash:    trackCommitHash,
+		AutoUpdateOnChange: autoUpdateOnChange,
+		Checksum:           template.Checksum,
+		Delims:             template.Delims,
+		AllowMissing:       template.AllowMissing,
+	}, nil
 }
 
 // IsReservedTargetName checks if a target name conflicts with subcommand names
@@ -400,7 +576,7 @@ func NewCmdVar(cmd string) VarValue { return VarValue{Kind: VarCmd, Arg: cmd} }
 func NewFileVar(path string) VarValue { return VarValue{Kind: VarFile, Arg: path} }
 
 // ValidateTarget exposes target validation rules for external callers.
-func ValidateTarget(t Target, name string) error { return validateTarget(t, name) }
+func ValidateTarget(t Target, name string) error { return validateTarget(t, name, nil) }
 
 // ResolveLogLevel determines the effective log level from CLI flag, environment, and config
 // Precedence: CLI flag > Environment variable > Config file > Default ("info")

@@ -32,7 +32,7 @@ func TestCacheKeyIntegrationWithConfig(t *testing.T) {
 
 	// Test cache key computation
 	vars := map[string]any{"TEST": "value"}
-	remoteKey1, err := computeRemoteCacheKey(template.Repo, template.Ref, template.Path)
+	remoteKey1, err := computeRemoteCacheKey(template.Repo, template.Ref)
 	if err != nil {
 		t.Fatalf("remote key1: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestCacheKeyIntegrationWithConfig(t *testing.T) {
 		t.Fatal("expected trackCommitHash to be false from updated global settings")
 	}
 
-	remoteKey2, _ := computeRemoteCacheKey(template.Repo, template.Ref, template.Path)
+	remoteKey2, _ := computeRemoteCacheKey(template.Repo, template.Ref)
 	renderedKey2, _ := computeRenderedCacheKey(vars)
 	if remoteKey1 != remoteKey2 {
 		t.Fatalf("remote key should not change when tracking setting changes")

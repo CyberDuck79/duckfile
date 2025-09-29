@@ -4,25 +4,53 @@ version: 1
 
 default: build
 
+# Remote configurations - defined once, shared across multiple targets
+remotes:
+  # Latest development templates with auto-update enabled
+  latest-templates:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: main
+    trackCommitHash: true
+    autoUpdateOnChange: true
+
+  # Stable release templates for production workflows
+  stable-templates:
+    repo: https://github.com/CyberDuck79/duckfile-test-templates.git
+    ref: v2.3.3
+    trackCommitHash: true
+    autoUpdateOnChange: false  # Manual updates only for stability
+
 targets:
   build:
     binary: make
     fileFlag: -f
     template:
-      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: main
+      remote: latest-templates    # References shared remote config
       path: Makefile.tpl
     variables:
       PROJECT: my-service
+      VERSION: 1.0.0
       DATE: !cmd date +%Y-%m-%d
+      USER: !env USER
     renderedPath: Makefile
+
+  build-stable:
+    binary: make
+    fileFlag: -f
+    template:
+      remote: stable-templates    # Uses stable version for production
+      path: Makefile.tpl
+    variables:
+      PROJECT: my-service
+      VERSION: 1.0.0
+      DATE: !cmd date +%Y-%m-%d
+    renderedPath: Makefile-stable
 
   test:                  # executed with `duck test`
     binary: task
     fileFlag: --taskfile
     template:
-      repo: https://github.com/CyberDuck79/duckfile-test-templates.git
-      ref: v2.3.3
+      remote: latest-templates    # Uses latest version for development
       path: task/Taskfile.yml.tpl
       delims: { left: "[[", right: "]]" }   # avoid Task's {{ }}
       allowMissing: true                    # missing vars => empty string
@@ -31,12 +59,29 @@ targets:
       PLATFORM: Darwin
     args: ["--silent"]
 
+  test-stable:
+    binary: task
+    fileFlag: --taskfile
+    template:
+      remote: stable-templates    # Uses stable version for reliability
+      path: task/Taskfile.yml.tpl
+      delims: { left: "[[", right: "]]" }   # avoid Task's {{ }}
+      allowMissing: true                    # missing vars => empty string
+    variables:
+      GO_VERSION: !env GO_VERSION
+      PLATFORM: Darwin
+    args: ["--silent"]
+    renderedPath: Taskfile-stable.yml
+
   docs:
     # No binary: this target is sync-only. Use `duck sync docs` to render.
+    # Example of inline remote configuration (not shared with other targets)
     template:
       repo: https://github.com/CyberDuck79/duckfile-test-docs-template.git
       ref: main
       path: index.md.tpl
+      trackCommitHash: true
+      autoUpdateOnChange: true
     variables:
       AUTHOR: Cyberduck
 

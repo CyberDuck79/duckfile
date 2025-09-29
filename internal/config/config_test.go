@@ -99,15 +99,18 @@ func TestArgListUnmarshal(t *testing.T) {
 // TestValidateTargetBinaryRules checks validation rejects fileFlag or args when
 // binary is absent, and accepts them when binary is present.
 func TestValidateTargetBinaryRules(t *testing.T) {
-	t1 := Target{Binary: "", FileFlag: "-f"}
+	// Include valid template data to avoid template validation errors
+	validTemplate := Template{Repo: "https://example.com/repo.git", Path: "template.tpl"}
+
+	t1 := Target{Binary: "", FileFlag: "-f", Template: validTemplate}
 	if err := ValidateTarget(t1, "x"); err == nil {
 		t.Fatalf("expected error for fileFlag without binary")
 	}
-	t2 := Target{Binary: "", Args: ArgList{"--silent"}}
+	t2 := Target{Binary: "", Args: ArgList{"--silent"}, Template: validTemplate}
 	if err := ValidateTarget(t2, "x"); err == nil {
 		t.Fatalf("expected error for args without binary")
 	}
-	t3 := Target{Binary: "echo", FileFlag: "-f"}
+	t3 := Target{Binary: "echo", FileFlag: "-f", Template: validTemplate}
 	if err := ValidateTarget(t3, "x"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,11 +152,14 @@ func TestDuckConfValidateEmptyDefault(t *testing.T) {
 
 // TestValidateTargetFileFlagRequiredWhenBinary ensures fileFlag is mandatory when binary is set.
 func TestValidateTargetFileFlagRequiredWhenBinary(t *testing.T) {
-	t1 := Target{Binary: "echo", FileFlag: ""}
+	// Include valid template data to avoid template validation errors
+	validTemplate := Template{Repo: "https://example.com/repo.git", Path: "template.tpl"}
+
+	t1 := Target{Binary: "echo", FileFlag: "", Template: validTemplate}
 	if err := ValidateTarget(t1, "x"); err == nil || !strings.Contains(err.Error(), "fileFlag is required") {
 		t.Fatalf("expected fileFlag required error, got %v", err)
 	}
-	t2 := Target{Binary: "echo", FileFlag: "-f"}
+	t2 := Target{Binary: "echo", FileFlag: "-f", Template: validTemplate}
 	if err := ValidateTarget(t2, "x"); err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
@@ -485,7 +491,7 @@ func TestValidateTargetWithCommitHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTarget(tt.target, tt.targetName)
+			err := validateTarget(tt.target, tt.targetName, nil)
 
 			if tt.expectErr {
 				if err == nil {

@@ -37,7 +37,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
@@ -84,7 +84,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
@@ -131,7 +131,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
@@ -173,14 +173,14 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
   test:
     name: test
     binary: echo
     fileFlag: -f
     template:
       repo: local
-    path: test.tpl
+      path: test.tpl
 `)
 
 	// Test stub to capture target and flags
@@ -222,7 +222,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture passthrough args and flags
@@ -264,7 +264,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
@@ -300,7 +300,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
@@ -342,7 +342,7 @@ targets:
     fileFlag: -f
     template:
       repo: local
-    path: file.tpl
+      path: file.tpl
 `)
 
 	// Test stub to capture flags
