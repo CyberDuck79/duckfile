@@ -432,7 +432,7 @@ During target execution, Duckfile automatically exposes repository and template 
 | `DUCK_REPO_PATH` | Path to cloned repository | `.duck/objects/remote/abc123` |
 | `DUCK_REPO_URL` | Repository URL | `https://github.com/org/templates.git` |
 | `DUCK_REPO_REF` | Git reference used | `main` |
-| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/remote/abc123/Makefile.tpl` |
+| `DUCK_TEMPLATE_PATH` | Source template file path | `.duck/objects/template/ghi789/raw.tpl` |
 | `DUCK_RENDERED_PATH` | Rendered template file path | `.duck/objects/rendered/def456/Makefile` |
 | `DUCK_SYMLINK_PATH` | Symlink path (what user sees) | `.duck/build/Makefile` |
 | `DUCK_TARGET_NAME` | Target name being executed | `build` |
@@ -484,22 +484,32 @@ build:
 
 ## 10. Deterministic cache (informative)
 
-Duckfile now uses a two‑tier cache separating remote template content from rendered output:
+Duckfile now uses a three‑tier cache separating remote repository content, template extraction, and rendered output:
 
-1. Remote layer
-   - Key: `remoteKey = SHA1(repo + ref + path)`
+1. Remote layer (shared across templates)
+   - Key: `remoteKey = SHA1(repo + ref)` (path removed for sharing)
    - Directory: `.duck/objects/remote/<remoteKey>/`
    - Contents:
-     - Raw template file (`<basename>`)
+     - Full repository checkout (`repo/` subdirectory)
      - `commit.hash` (always written on fetch, regardless of tracking flags)
-     - `checksum.sha256` (only when `checksum` is configured)
+     - `metadata.json` (remote configuration metadata)
    - Invalidation triggers:
      - Missing directory (first use)
      - `--force` flag
      - Commit hash changed AND `trackCommitHash && autoUpdateOnChange`
+
+2. Template layer (template-specific)
+   - Key: `templateKey = SHA1(remoteKey + path)`
+   - Directory: `.duck/objects/template/<templateKey>/`
+   - Contents:
+     - Extracted template file (`raw.tpl`)
+     - `metadata.json` (template metadata with checksum if configured)
+   - Invalidation triggers:
+     - Missing directory (first use)
+     - Associated remote cache invalidated
      - Checksum mismatch (hard failure)
 
-2. Rendered layer
+3. Rendered layer
    - Key: `renderedKey = SHA1(sorted resolvedVariablesJSON)` (variables only; order independent)
    - Directory: `.duck/objects/rendered/<renderedKey>/`
    - Contents:
