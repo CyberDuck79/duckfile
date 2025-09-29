@@ -18,12 +18,18 @@ func TestSyncPipelineHappyPath(t *testing.T) {
 		restore := resetSeams(t)
 		defer restore()
 		// Prepare fake repo template
-		repoDir := filepath.Join("repo")
-		os.MkdirAll(repoDir, 0o755)
-		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hello {{ .NAME }}"), 0o644)
+		templateDir := filepath.Join("template_source")
+		os.MkdirAll(templateDir, 0o755)
+		os.WriteFile(filepath.Join(templateDir, "t.tpl"), []byte("hello {{ .NAME }}"), 0o644)
 		// Stub clone
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "t.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "t.tpl"), data, 0o644)
+			return repoDir, nil
+		}
 		defer func() { cloneFunc = origClone }()
 		// Capture exec invocation
 		var capturedArgs []string

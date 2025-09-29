@@ -317,7 +317,13 @@ func TestPrepareTemplatePrunesOldRenderedCache(t *testing.T) {
 
 		// Stub clone
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			dst := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(dst, 0o755)
+			data, _ := os.ReadFile(filepath.Join(repoDir, "t.tpl"))
+			os.WriteFile(filepath.Join(dst, "t.tpl"), data, 0o644)
+			return dst, nil
+		}
 		defer func() { cloneFunc = origClone }()
 
 		// Initial target/config
@@ -383,7 +389,14 @@ func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
 		// Mock clone
 		origClone := cloneFunc
 		cloneCalls := 0
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { cloneCalls++; return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			cloneCalls++
+			dst := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(dst, 0o755)
+			data, _ := os.ReadFile(filepath.Join(repoDir, "t.tpl"))
+			os.WriteFile(filepath.Join(dst, "t.tpl"), data, 0o644)
+			return dst, nil
+		}
 		defer func() { cloneFunc = origClone }()
 
 		target := config.Target{Template: config.Template{Repo: "https://example/repo.git", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"NAME": config.NewLiteralVar("Alice")}, RenderedPath: "out.txt"}
@@ -393,7 +406,7 @@ func TestVariableChangeDoesNotRefetchRemote(t *testing.T) {
 		if _, err := prepareAndRenderTemplate("t", target, cfg, false, &config.SecurityConfig{}, nil, nil); err != nil {
 			t.Fatalf("first render: %v", err)
 		}
-		remoteKey, err := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref, target.Template.Path)
+		remoteKey, err := computeRemoteCacheKey(target.Template.Repo, target.Template.Ref)
 		if err != nil {
 			t.Fatalf("remote key: %v", err)
 		}

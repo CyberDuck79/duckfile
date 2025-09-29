@@ -74,15 +74,15 @@ func TestComputeRenderedCacheKeyValueSensitivity(t *testing.T) {
 	}
 }
 
-// TestComputeRemoteCacheKeyDeterminism validates that remote key is stable for same repo/ref/path
-// and changes if any component differs.
+// TestComputeRemoteCacheKeyDeterminism validates that remote key is stable for same repo/ref
+// and changes if repo or ref differs. Path is NOT included in remote cache key (Phase 2 change).
 func TestComputeRemoteCacheKeyDeterminism(t *testing.T) {
-	repo, ref, path := "git@ex/repo.git", "main", "templates/app.tpl"
-	k1, err := computeRemoteCacheKey(repo, ref, path)
+	repo, ref := "git@ex/repo.git", "main"
+	k1, err := computeRemoteCacheKey(repo, ref)
 	if err != nil {
 		t.Fatalf("k1: %v", err)
 	}
-	k2, err := computeRemoteCacheKey(repo, ref, path)
+	k2, err := computeRemoteCacheKey(repo, ref)
 	if err != nil {
 		t.Fatalf("k2: %v", err)
 	}
@@ -90,16 +90,16 @@ func TestComputeRemoteCacheKeyDeterminism(t *testing.T) {
 		t.Fatalf("expected identical remote keys; got %s vs %s", k1, k2)
 	}
 
+	// Test that different repo/ref produces different keys
 	type variant struct {
-		repo, ref, path string
+		repo, ref string
 	}
 	variants := []variant{
-		{repo: "git@ex/other.git", ref: ref, path: path},
-		{repo: repo, ref: "dev", path: path},
-		{repo: repo, ref: ref, path: "templates/other.tpl"},
+		{repo: "git@ex/other.git", ref: ref},
+		{repo: repo, ref: "dev"},
 	}
 	for i, v := range variants {
-		kDiff, err := computeRemoteCacheKey(v.repo, v.ref, v.path)
+		kDiff, err := computeRemoteCacheKey(v.repo, v.ref)
 		if err != nil {
 			t.Fatalf("variant %d: %v", i, err)
 		}
@@ -111,8 +111,8 @@ func TestComputeRemoteCacheKeyDeterminism(t *testing.T) {
 
 // TestRemoteKeyIndependenceFromVariables ensures that variable changes do not affect the remote key.
 func TestRemoteKeyIndependenceFromVariables(t *testing.T) {
-	repo, ref, path := "git@example/repo.git", "main", "dir/tpl.tpl"
-	k, err := computeRemoteCacheKey(repo, ref, path)
+	repo, ref := "git@example/repo.git", "main"
+	k, err := computeRemoteCacheKey(repo, ref)
 	if err != nil {
 		t.Fatalf("compute remote: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestRemoteKeyIndependenceFromVariables(t *testing.T) {
 	vars1 := map[string]any{"a": 1}
 	vars2 := map[string]any{"a": 2, "b": "x"}
 	// remote key unaffected
-	kAgain, err := computeRemoteCacheKey(repo, ref, path)
+	kAgain, err := computeRemoteCacheKey(repo, ref)
 	if err != nil {
 		t.Fatalf("compute remote again: %v", err)
 	}

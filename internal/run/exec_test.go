@@ -55,11 +55,17 @@ func TestExecuteTargetArgumentOrdering(t *testing.T) {
 		restore := resetSeams(t)
 		defer restore()
 		// minimal rendered object setup
-		tplDir := filepath.Join("repo")
-		os.MkdirAll(tplDir, 0o755)
-		os.WriteFile(filepath.Join(tplDir, "t.tpl"), []byte("hi"), 0o644)
+		templateDir := filepath.Join("template_source")
+		os.MkdirAll(templateDir, 0o755)
+		os.WriteFile(filepath.Join(templateDir, "t.tpl"), []byte("hi"), 0o644)
 		origClone := cloneFunc
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return tplDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "t.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "t.tpl"), data, 0o644)
+			return repoDir, nil
+		}
 		defer func() { cloneFunc = origClone }()
 		// capture exec invocation
 		var capturedName string
@@ -105,12 +111,16 @@ func TestExecuteTargetEnvironmentVariables(t *testing.T) {
 		defer restore()
 
 		// Setup test repository and template
-		repoDir := t.TempDir()
-		templateFile := filepath.Join(repoDir, "test.tpl")
+		templateDir := t.TempDir()
+		templateFile := filepath.Join(templateDir, "test.tpl")
 		os.WriteFile(templateFile, []byte("test content"), 0o644)
 
 		origClone := cloneFunc
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "test.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "test.tpl"), data, 0o644)
 			return repoDir, nil
 		}
 		defer func() { cloneFunc = origClone }()
@@ -246,12 +256,16 @@ func TestEnvironmentVariablesWithDefaultRef(t *testing.T) {
 		restore := resetSeams(t)
 		defer restore()
 
-		repoDir := t.TempDir()
-		templateFile := filepath.Join(repoDir, "test.tpl")
+		templateDir := t.TempDir()
+		templateFile := filepath.Join(templateDir, "test.tpl")
 		os.WriteFile(templateFile, []byte("test content"), 0o644)
 
 		origClone := cloneFunc
 		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "test.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "test.tpl"), data, 0o644)
 			return repoDir, nil
 		}
 		defer func() { cloneFunc = origClone }()

@@ -35,3 +35,16 @@ func validateAndCacheTemplateChecksum(target config.Target, src, remoteDir strin
 	}
 	return nil
 }
+
+// validateResolvedTemplateChecksum validates a template file against a provided checksum
+func validateResolvedTemplateChecksum(filePath, expectedChecksum string) error {
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read template for checksum validation: %w", err)
+	}
+	sum := fmt.Sprintf("%x", sha256.Sum256(b))
+	if sum != expectedChecksum {
+		return fmt.Errorf("template checksum mismatch: expected %s, got %s", expectedChecksum, sum)
+	}
+	return nil
+}

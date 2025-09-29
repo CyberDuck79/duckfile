@@ -116,10 +116,16 @@ func TestCommitHashStorageAndAutoUpdatePaths(t *testing.T) {
 	withTempWD(t, func() {
 		restore := resetSeams(t)
 		defer restore()
-		repoDir := "repo"
-		os.MkdirAll(repoDir, 0o755)
-		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+		templateDir := "template_source"
+		os.MkdirAll(templateDir, 0o755)
+		os.WriteFile(filepath.Join(templateDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "t.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "t.tpl"), data, 0o644)
+			return repoDir, nil
+		}
 		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		h2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -136,7 +142,7 @@ func TestCommitHashStorageAndAutoUpdatePaths(t *testing.T) {
 			t.Fatalf("stored hash mismatch %s", sh)
 		}
 		// mutate template and change hashes
-		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi2 {{.N}}"), 0o644)
+		os.WriteFile(filepath.Join(templateDir, "t.tpl"), []byte("hi2 {{.N}}"), 0o644)
 		getRemoteCommitFunc = func(repo, ref string) (string, error) { return h2, nil }
 		getCurrentCommitFunc = func(workdir string) (string, error) { return h2, nil }
 		res2, err := prepareAndRenderTemplate("t", cfg.Targets["t"], cfg, false, &config.SecurityConfig{}, nil, nil)
@@ -156,10 +162,16 @@ func TestCommitHashChangeWithoutAutoUpdate(t *testing.T) {
 	withTempWD(t, func() {
 		restore := resetSeams(t)
 		defer restore()
-		repoDir := "repo"
-		os.MkdirAll(repoDir, 0o755)
-		os.WriteFile(filepath.Join(repoDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+		templateDir := "template_source"
+		os.MkdirAll(templateDir, 0o755)
+		os.WriteFile(filepath.Join(templateDir, "t.tpl"), []byte("hi {{.N}}"), 0o644)
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "t.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "t.tpl"), data, 0o644)
+			return repoDir, nil
+		}
 		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: false}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		getCurrentCommitFunc = func(workdir string) (string, error) { return h1, nil }
@@ -185,11 +197,17 @@ func TestRemoteCacheInvalidationGC(t *testing.T) {
 	withTempWD(t, func() {
 		restore := resetSeams(t)
 		defer restore()
-		repoDir := "repo"
-		os.MkdirAll(repoDir, 0o755)
-		tpl := filepath.Join(repoDir, "t.tpl")
+		templateDir := "template_source"
+		os.MkdirAll(templateDir, 0o755)
+		tpl := filepath.Join(templateDir, "t.tpl")
 		os.WriteFile(tpl, []byte("v1 {{.N}}"), 0o644)
-		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) { return repoDir, nil }
+		cloneFunc = func(repo, ref, cacheDir string, submodules bool) (string, error) {
+			repoDir := filepath.Join(cacheDir, "repo")
+			os.MkdirAll(repoDir, 0o755)
+			data, _ := os.ReadFile(filepath.Join(templateDir, "t.tpl"))
+			os.WriteFile(filepath.Join(repoDir, "t.tpl"), data, 0o644)
+			return repoDir, nil
+		}
 		cfg := &config.DuckConf{Version: 1, Settings: &config.Settings{TrackCommitHash: true, AutoUpdateOnChange: true}, Targets: map[string]config.Target{"t": {Template: config.Template{Repo: "stub", Ref: "main", Path: "t.tpl"}, Variables: map[string]config.VarValue{"N": config.NewLiteralVar("w")}}}}
 		h1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		h2 := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

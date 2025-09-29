@@ -81,6 +81,7 @@ func TestEnsureRenderedLogic(t *testing.T) {
 			t.Fatalf("paths: %v", err)
 		}
 		os.MkdirAll(p.remoteDir, 0o755)
+		os.MkdirAll(p.templateDir, 0o755)
 		os.WriteFile(p.remoteTemplateFile, []byte("val {{ .A }}"), 0o644)
 		targ := config.Target{Template: config.Template{Repo: "stub", Ref: "main", Path: "f.tpl"}}
 		if err := ensureRendered(false, false, targ, vars, p); err != nil {
