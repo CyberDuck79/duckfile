@@ -39,8 +39,8 @@ func cleanOne(targetName string, t config.Target) error {
 	}
 
 	// Clean rendered cache (if symlink exists)
-	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
-	cacheDir := filepath.Join(".duck", targetName)
+	base := getBaseTemplateName(t.Template.Path)
+	cacheDir := getTargetCacheDir(targetName)
 	linkPath := t.RenderedPath
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base)
@@ -79,8 +79,8 @@ func cleanOne(targetName string, t config.Target) error {
 
 // cleanOneBasic provides fallback cleanup when path computation fails
 func cleanOneBasic(targetName string, t config.Target) error {
-	base := strings.TrimSuffix(filepath.Base(t.Template.Path), ".tpl")
-	cacheDir := filepath.Join(".duck", targetName)
+	base := getBaseTemplateName(t.Template.Path)
+	cacheDir := getTargetCacheDir(targetName)
 	linkPath := t.RenderedPath
 	if linkPath == "" {
 		linkPath = filepath.Join(cacheDir, base)

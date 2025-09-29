@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/CyberDuck79/duckfile/internal/config"
 	"github.com/CyberDuck79/duckfile/internal/log"
@@ -69,23 +70,51 @@ type PrepareTemplateResult struct {
 	CacheDir     string // Per-target cache directory
 }
 
+// getTargetCacheDir returns the cache directory path for a target
+func getTargetCacheDir(targetName string) string {
+	return filepath.Join(".duck", targetName)
+}
+
+// getBaseTemplateName extracts the base name from a template path
+func getBaseTemplateName(templatePath string) string {
+	return strings.TrimSuffix(filepath.Base(templatePath), ".tpl")
+}
+
+// createPrepareTemplateResult creates a PrepareTemplateResult with common fields populated
+func createPrepareTemplateResult(paths *templatePaths, resolved config.ResolvedTemplate, targetName, linkPath, oldRenderedKey string) *PrepareTemplateResult {
+	return &PrepareTemplateResult{
+		ObjFile:        paths.renderedFile,
+		LinkPath:       linkPath,
+		OldRenderedKey: oldRenderedKey,
+		RenderedKey:    paths.renderedKey,
+		RemoteKey:      paths.remoteKey,
+
+		// Environment variables
+		RepoPath:     filepath.Join(paths.remoteDir, "repo"),
+		RepoURL:      resolved.Repo,
+		RepoRef:      resolved.Ref,
+		TemplatePath: paths.remoteTemplateFile,
+		TargetName:   targetName,
+		CacheDir:     getTargetCacheDir(targetName),
+	}
+}
+
 // prepareAndRenderTemplate handles the complete template preparation workflow
 // shared between Exec and Sync operations. It includes variable resolution,
 // cache computation, repository cloning, checksum validation, template rendering,
 // symlink management, and old cache cleanup.
-func prepareAndRenderTemplate(targetName string, target config.Target, cfg *config.DuckConf, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*PrepareTemplateResult, error) {
-	log.Infof("🎯 prepare template for target %q", targetName)
-
+// validateSecurityAndResolveTemplate handles security validation and template resolution
+func validateSecurityAndResolveTemplate(targetName string, target *config.Target, cfg *config.DuckConf, securityCfg *config.SecurityConfig) (config.ResolvedTemplate, error) {
 	// Validate strict policy mode requirements first
 	if err := config.ValidateStrictPolicyMode(securityCfg); err != nil {
-		return nil, fmt.Errorf("strict policy mode validation failed: %w", err)
+		return config.ResolvedTemplate{}, fmt.Errorf("strict policy mode validation failed: %w", err)
 	}
 
 	// Enforce security policies
-	policyResult := config.EnforceSecurityPolicies(targetName, &target, securityCfg)
+	policyResult := config.EnforceSecurityPolicies(targetName, target, securityCfg)
 	if !policyResult.Allowed {
 		violationMsg := config.FormatPolicyViolations(policyResult)
-		return nil, fmt.Errorf("security policy violations prevent execution:\n%s", violationMsg)
+		return config.ResolvedTemplate{}, fmt.Errorf("security policy violations prevent execution:\n%s", violationMsg)
 	}
 
 	// Log policy warnings if any
@@ -95,20 +124,25 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 	}
 
 	// Apply policy overrides to target configuration
-	modifiedTarget := config.ApplyPolicyOverrides(&target, securityCfg)
-	target = *modifiedTarget
+	modifiedTarget := config.ApplyPolicyOverrides(target, securityCfg)
+	*target = *modifiedTarget
 
 	// Resolve template configuration (handles both remote references and inline configs)
 	resolved, err := config.ResolveTemplateConfig(target.Template, cfg.Remotes, cfg.Settings)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve template config: %w", err)
+		return config.ResolvedTemplate{}, fmt.Errorf("failed to resolve template config: %w", err)
 	}
 
 	// Repository access validation using resolved config
 	if err := config.ValidateRepoAccess(resolved.Repo, securityCfg); err != nil {
-		return nil, fmt.Errorf("repository access denied: %w", err)
+		return config.ResolvedTemplate{}, fmt.Errorf("repository access denied: %w", err)
 	}
 
+	return resolved, nil
+}
+
+// prepareTemplateWorkflow handles the template preparation workflow including fetching and rendering
+func prepareTemplateWorkflow(targetName string, target config.Target, resolved config.ResolvedTemplate, cfg *config.DuckConf, force bool, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*templatePaths, error) {
 	vars, err := resolveAndLogVariables(target)
 	if err != nil {
 		return nil, err
@@ -148,6 +182,24 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		return nil, err
 	}
 
+	return paths, nil
+}
+
+func prepareAndRenderTemplate(targetName string, target config.Target, cfg *config.DuckConf, force bool, securityCfg *config.SecurityConfig, trackCommitHashFlag *bool, autoUpdateOnChangeFlag *bool) (*PrepareTemplateResult, error) {
+	log.Infof("🎯 prepare template for target %q", targetName)
+
+	// Validate security and resolve template configuration
+	resolved, err := validateSecurityAndResolveTemplate(targetName, &target, cfg, securityCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare and render template
+	paths, err := prepareTemplateWorkflow(targetName, target, resolved, cfg, force, trackCommitHashFlag, autoUpdateOnChangeFlag)
+	if err != nil {
+		return nil, err
+	}
+
 	// Determine if we should copy instead of symlink
 	isSelf := targetName == "self"
 	if isSelf || target.CopyRendered {
@@ -160,21 +212,7 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		log.Infof("📄 copied rendered file to %s", dst)
 		// No symlink, so oldRenderedKey is empty
 		pruneOldRendered("", paths.renderedKey)
-		return &PrepareTemplateResult{
-			ObjFile:        paths.renderedFile,
-			LinkPath:       dst,
-			OldRenderedKey: "",
-			RenderedKey:    paths.renderedKey,
-			RemoteKey:      paths.remoteKey,
-
-			// New fields for environment variables
-			RepoPath:     filepath.Join(paths.remoteDir, "repo"),
-			RepoURL:      resolved.Repo,
-			RepoRef:      resolved.Ref,
-			TemplatePath: paths.remoteTemplateFile,
-			TargetName:   targetName,
-			CacheDir:     filepath.Join(".duck", targetName),
-		}, nil
+		return createPrepareTemplateResult(paths, resolved, targetName, dst, ""), nil
 	}
 
 	oldRenderedKey, err := linkRendered(paths)
@@ -182,21 +220,7 @@ func prepareAndRenderTemplate(targetName string, target config.Target, cfg *conf
 		return nil, err
 	}
 	pruneOldRendered(oldRenderedKey, paths.renderedKey)
-	return &PrepareTemplateResult{
-		ObjFile:        paths.renderedFile,
-		LinkPath:       paths.linkPath,
-		OldRenderedKey: oldRenderedKey,
-		RenderedKey:    paths.renderedKey,
-		RemoteKey:      paths.remoteKey,
-
-		// New fields for environment variables
-		RepoPath:     filepath.Join(paths.remoteDir, "repo"),
-		RepoURL:      resolved.Repo,
-		RepoRef:      resolved.Ref,
-		TemplatePath: paths.remoteTemplateFile,
-		TargetName:   targetName,
-		CacheDir:     filepath.Join(".duck", targetName),
-	}, nil
+	return createPrepareTemplateResult(paths, resolved, targetName, paths.linkPath, oldRenderedKey), nil
 }
 
 // Sync renders templates into the cache without executing the target.
