@@ -577,6 +577,8 @@ func determineEffectiveConfig(sources map[string]*SecurityConfig) (*SecurityConf
 	}, "none"
 }
 
+// GetSecurityConfigPrecedenceInfo retrieves security configuration precedence information
+// combining CLI arguments, environment variables, and file-based configurations
 func GetSecurityConfigPrecedenceInfo(cliAllowed []string, cliDenied []string, cliStrict bool) (*SecurityConfigPrecedenceInfo, error) {
 	info := &SecurityConfigPrecedenceInfo{
 		Sources: make(map[string]*SecurityConfig),

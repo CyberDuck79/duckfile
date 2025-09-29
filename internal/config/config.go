@@ -468,7 +468,7 @@ func validateTarget(t Target, name string, remotes map[string]Remote) error {
 	return validateTemplate(t.Template, name, remotes)
 }
 
-// resolveTemplateConfig resolves a template configuration by merging remote settings
+// ResolveTemplateConfig resolves a template configuration by merging remote settings
 // with template-specific settings and global settings fallback
 func ResolveTemplateConfig(template Template, remotes map[string]Remote, settings *Settings) (ResolvedTemplate, error) {
 	if template.Remote != "" {
@@ -489,33 +489,33 @@ func ResolveTemplateConfig(template Template, remotes map[string]Remote, setting
 			Delims:             template.Delims,
 			AllowMissing:       template.AllowMissing,
 		}, nil
-	} else {
-		// Use inline configuration with settings fallback
-		trackCommitHash := template.TrackCommitHash
-		autoUpdateOnChange := template.AutoUpdateOnChange
-
-		// Apply global settings if not set at template level
-		if settings != nil {
-			if !template.TrackCommitHash && settings.GetTrackCommitHash() {
-				trackCommitHash = true
-			}
-			if !template.AutoUpdateOnChange && settings.GetAutoUpdateOnChange() {
-				autoUpdateOnChange = true
-			}
-		}
-
-		return ResolvedTemplate{
-			Repo:               template.Repo,
-			Ref:                template.Ref,
-			Path:               template.Path,
-			Submodules:         template.Submodules,
-			TrackCommitHash:    trackCommitHash,
-			AutoUpdateOnChange: autoUpdateOnChange,
-			Checksum:           template.Checksum,
-			Delims:             template.Delims,
-			AllowMissing:       template.AllowMissing,
-		}, nil
 	}
+
+	// Use inline configuration with settings fallback
+	trackCommitHash := template.TrackCommitHash
+	autoUpdateOnChange := template.AutoUpdateOnChange
+
+	// Apply global settings if not set at template level
+	if settings != nil {
+		if !template.TrackCommitHash && settings.GetTrackCommitHash() {
+			trackCommitHash = true
+		}
+		if !template.AutoUpdateOnChange && settings.GetAutoUpdateOnChange() {
+			autoUpdateOnChange = true
+		}
+	}
+
+	return ResolvedTemplate{
+		Repo:               template.Repo,
+		Ref:                template.Ref,
+		Path:               template.Path,
+		Submodules:         template.Submodules,
+		TrackCommitHash:    trackCommitHash,
+		AutoUpdateOnChange: autoUpdateOnChange,
+		Checksum:           template.Checksum,
+		Delims:             template.Delims,
+		AllowMissing:       template.AllowMissing,
+	}, nil
 }
 
 // IsReservedTargetName checks if a target name conflicts with subcommand names

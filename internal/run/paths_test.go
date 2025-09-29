@@ -99,12 +99,12 @@ func TestComputeRemoteCacheKeyDeterminism(t *testing.T) {
 		{repo: repo, ref: "dev"},
 	}
 	for i, v := range variants {
-		kDiff, err := computeRemoteCacheKey(v.repo, v.ref)
+		diff, err := computeRemoteCacheKey(v.repo, v.ref)
 		if err != nil {
 			t.Fatalf("variant %d: %v", i, err)
 		}
-		if kDiff == k1 {
-			t.Fatalf("variant %d produced same key (%s) unexpectedly", i, kDiff)
+		if diff == k1 {
+			t.Fatalf("variant %d produced same key (%s) unexpectedly", i, diff)
 		}
 	}
 }
@@ -120,11 +120,11 @@ func TestRemoteKeyIndependenceFromVariables(t *testing.T) {
 	vars1 := map[string]any{"a": 1}
 	vars2 := map[string]any{"a": 2, "b": "x"}
 	// remote key unaffected
-	kAgain, err := computeRemoteCacheKey(repo, ref)
+	again, err := computeRemoteCacheKey(repo, ref)
 	if err != nil {
 		t.Fatalf("compute remote again: %v", err)
 	}
-	if k != kAgain {
+	if k != again {
 		t.Fatalf("remote key changed unexpectedly with variable changes")
 	}
 	// rendered keys differ
